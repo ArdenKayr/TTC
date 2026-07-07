@@ -4,6 +4,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramAPIError
 from aiogram.fsm.storage.redis import RedisStorage
 
 from bot.config import settings
@@ -17,6 +18,19 @@ from bot.routers.group.topic_guards import router as topic_guards_router
 from bot.routers.registration import router as registration_router
 
 logging.basicConfig(level=logging.INFO)
+
+
+async def resolve_group_chat_id(bot: Bot) -> None:
+    """GROUP_CHAT_ID may be a public @username; handlers compare numeric chat ids."""
+    if not isinstance(settings.group_chat_id, str):
+        return
+    try:
+        chat = await bot.get_chat(settings.group_chat_id)
+        settings.group_chat_id = chat.id
+        logging.info("Resolved group %s -> %s", chat.username, chat.id)
+    except TelegramAPIError as e:
+        logging.warning("Failed to resolve GROUP_CHAT_ID %r: %s", settings.group_chat_id, e)
+        settings.group_chat_id = None
 
 
 async def main() -> None:
@@ -39,6 +53,7 @@ async def main() -> None:
     )
 
     await bot.delete_webhook(drop_pending_updates=True)
+    await resolve_group_chat_id(bot)
     await dp.start_polling(bot)
 
 

@@ -6,6 +6,7 @@ from aiogram.types import Message
 from bot.config import settings
 from bot.db.models import User
 from bot.enums import UserRole
+from bot.services import notification_service
 
 router = Router(name="topic_guards")
 
@@ -32,7 +33,6 @@ async def group_message(message: Message, db_user: User | None) -> None:
     if message.text and "@admin" in message.text.lower():
         sender = message.from_user
         who = f"@{sender.username}" if sender.username else sender.full_name
-        await message.bot.send_message(
-            settings.admin_chat_id,
-            f"⚠️ Вызов админа в группе от {who}:\n{_message_link(message)}",
+        await notification_service.send_admin_report(
+            message.bot, f"⚠️ Вызов админа в группе от {who}:\n{_message_link(message)}"
         )

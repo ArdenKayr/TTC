@@ -7,14 +7,19 @@ class Settings(BaseSettings):
 
     bot_token: str
     admin_chat_id: int
+    admin_topic_applications_id: int | None = None
+    admin_topic_reports_id: int | None = None
 
-    group_chat_id: int | None = None
+    # Numeric -100... id or public @username (resolved to the numeric id at startup).
+    group_chat_id: int | str | None = None
     topic_announcements_id: int | None = None
     topic_afisha_id: int | None = None
     topic_voting_id: int | None = None
 
     @field_validator(
         "group_chat_id",
+        "admin_topic_applications_id",
+        "admin_topic_reports_id",
         "topic_announcements_id",
         "topic_afisha_id",
         "topic_voting_id",
@@ -23,6 +28,13 @@ class Settings(BaseSettings):
     @classmethod
     def _empty_str_as_none(cls, value):
         return None if value == "" else value
+
+    @field_validator("group_chat_id", mode="after")
+    @classmethod
+    def _numeric_str_to_int(cls, value):
+        if isinstance(value, str) and value.lstrip("-").isdigit():
+            return int(value)
+        return value
 
     database_url: str
     redis_url: str
