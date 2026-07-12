@@ -20,6 +20,8 @@ class User(Base):
     )
     university_group: Mapped[str | None] = mapped_column(sa.String(50))
     birth_date: Mapped[date | None]
+    # «О себе» — заполнено у тех, кто регистрировался без вуза СПб.
+    about_text: Mapped[str | None] = mapped_column(sa.Text)
     current_role: Mapped[UserRole] = mapped_column(
         user_role_enum, default=UserRole.USER, server_default=UserRole.USER.value
     )

@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from html import escape
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
@@ -8,10 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import texts
 from bot.config import settings
-from bot.db.models import RegistrationRequest, User
+from bot.db.models import RegistrationRequest, UniversityRequest, User
 from bot.db.repositories import audit_repo, registration_repo, university_repo, user_repo
-from bot.enums import ActorType, AuditAction, RequestStatus, UserRole
-from bot.keyboards.admin_kb import registration_review_kb
+from bot.enums import AuditAction, RequestStatus, UserRole
+from bot.keyboards.admin_kb import registration_review_kb, university_request_review_kb
 from bot.services import notification_service
 from bot.services.throttle import rejection_timeout_minutes
 
@@ -41,60 +42,111 @@ async def check_can_apply(session: AsyncSession, tg_id: int) -> str | None:
 async def submit_request(
     session: AsyncSession, bot: Bot, applicant: TgUser, form: dict
 ) -> RegistrationRequest:
-    new_university_name = form.get("new_university_name")
+    """Создаёт заявку на регистрацию по данным анкеты.
+
+    Три ветки по вузу (form["uni_mode"]):
+    - "picked" — вуз выбран из справочника: карточка регистрации уходит админам сразу;
+    - "new"    — человек подал заявку на новый вуз: сначала админам уходит карточка
+                 вуза, карточка регистрации отправится после решения по вузу;
+    - "none"   — не учится в вузе СПб: карточка сразу, с текстом «о себе».
+    """
+    uni_mode = form.get("uni_mode", "picked")
     university_id = form.get("university_id")
-    is_new_university = False
-    if university_id is None:
-        existing = await university_repo.find_by_exact_name(session, new_university_name)
+    university_line = form.get("university_name")
+    university_request: UniversityRequest | None = None
+
+    if uni_mode == "new":
+        existing = await university_repo.find_by_exact_name(session, form["new_uni_name"])
         if existing is not None:
+            # Такой вуз уже есть в справочнике — заявка на вуз не нужна.
             university_id = existing.university_id
+            university_line = existing.canonical_name
+            uni_mode = "picked"
         else:
-            university = await university_repo.create_unverified(session, new_university_name)
-            university_id = university.university_id
-            is_new_university = True
-            await audit_repo.add(
-                session,
-                AuditAction.UNIVERSITY_ADDED,
-                actor_type=ActorType.SYSTEM,
-                target_entity_type="university",
-                target_entity_id=str(university_id),
-                meta={"name": new_university_name, "added_by_tg_id": applicant.id},
+            university_request = UniversityRequest(
+                tg_id=applicant.id,
+                applicant_name=form["nick"],
+                applicant_username=applicant.username,
+                name=form["new_uni_name"],
+                aliases=form.get("new_uni_aliases") or [],
+                link=form["new_uni_link"],
             )
+            session.add(university_request)
+            await session.flush()
 
     request = RegistrationRequest(
         tg_id=applicant.id,
-        full_name=form["full_name"],
+        full_name=form["nick"],
         university_id=university_id,
-        university_group=form["university_group"],
+        university_group=form.get("university_group"),
         birth_date=date.fromisoformat(form["birth_date"]),
+        about_text=form.get("about_text"),
+        university_request_id=(
+            university_request.request_id if university_request is not None else None
+        ),
         raw_input_snapshot={
             "username": applicant.username,
             "university_query": form.get("university_query"),
-            "new_university_name": new_university_name,
+            "uni_mode": uni_mode,
+            "new_university_name": form.get("new_uni_name"),
         },
         attempt_number=await registration_repo.next_attempt_number(session, applicant.id),
     )
     session.add(request)
     await session.flush()
 
-    university_label = form.get("university_name") or new_university_name
-    if is_new_university:
-        university_label += texts.REG_CARD_NEW_UNI_SUFFIX
-    username = f"@{applicant.username}" if applicant.username else texts.USERNAME_MISSING
-    card = texts.REG_CARD.format(
-        attempt=request.attempt_number,
-        name=form["full_name"],
-        username=username,
-        tg_id=applicant.id,
-        university=university_label,
-        group=form["university_group"],
-        birth_date=request.birth_date.strftime("%d.%m.%Y"),
-    )
-    await notification_service.send_admin_card(
-        bot, card, registration_review_kb(request.request_id)
-    )
+    if university_request is not None:
+        # Lazy import: university_service импортирует этот модуль на уровне модуля.
+        from bot.services import university_service
+
+        await notification_service.send_admin_card(
+            bot,
+            university_service.render_request_card(university_request),
+            university_request_review_kb(university_request.request_id),
+        )
+    else:
+        await send_registration_card(session, bot, request, university_line=university_line)
     await session.commit()
     return request
+
+
+async def send_registration_card(
+    session: AsyncSession,
+    bot: Bot,
+    request: RegistrationRequest,
+    university_line: str | None = None,
+) -> None:
+    """Отправляет карточку заявки в топик «Заявки».
+
+    university_line — готовая строка о вузе (например, с пометкой «добавлен по
+    заявке» или «отклонён»). Если не передана — берётся название по
+    university_id; если вуза нет вовсе — строка «Не учусь в вузе СПб».
+    """
+    snapshot = request.raw_input_snapshot or {}
+    raw_username = snapshot.get("username")
+    username = f"@{raw_username}" if raw_username else texts.USERNAME_MISSING
+    if university_line is None and request.university_id is not None:
+        university = await university_repo.get(session, request.university_id)
+        if university is not None:
+            university_line = university.canonical_name
+
+    lines = [texts.SUM_NICK.format(nick=escape(request.full_name))]
+    if university_line is not None:
+        lines.append(texts.SUM_UNI.format(university=escape(university_line)))
+    else:
+        lines.append(texts.SUM_UNI_NONE)
+    if request.university_group:
+        lines.append(texts.SUM_GROUP.format(group=escape(request.university_group)))
+    if request.about_text:
+        lines.append(texts.SUM_ABOUT.format(about=escape(request.about_text)))
+    lines.append(texts.SUM_BIRTH.format(birth_date=request.birth_date.strftime("%d.%m.%Y")))
+
+    header = texts.REG_CARD_HEADER.format(
+        attempt=request.attempt_number, username=escape(username), tg_id=request.tg_id
+    )
+    await notification_service.send_admin_card(
+        bot, header + "\n" + "\n".join(lines), registration_review_kb(request.request_id)
+    )
 
 
 async def approve(
@@ -118,6 +170,7 @@ async def approve(
         university_id=request.university_id,
         university_group=request.university_group,
         birth_date=request.birth_date,
+        about_text=request.about_text,
     )
 
     notes = []

@@ -23,9 +23,10 @@ async def upsert_from_registration(
     tg_id: int,
     username: str | None,
     display_name: str,
-    university_id: int,
-    university_group: str,
+    university_id: int | None,
+    university_group: str | None,
     birth_date,
+    about_text: str | None = None,
 ) -> User:
     stmt = (
         insert(User)
@@ -36,6 +37,7 @@ async def upsert_from_registration(
             university_id=university_id,
             university_group=university_group,
             birth_date=birth_date,
+            about_text=about_text,
             current_role=UserRole.USER,
         )
         .on_conflict_do_update(
@@ -46,6 +48,7 @@ async def upsert_from_registration(
                 "university_id": university_id,
                 "university_group": university_group,
                 "birth_date": birth_date,
+                "about_text": about_text,
                 "current_role": UserRole.USER,
             },
         )

@@ -14,6 +14,32 @@ class UniversityNewCB(CallbackData, prefix="uninew"):
     pass
 
 
+class UniversityNoneCB(CallbackData, prefix="uninone"):
+    pass
+
+
+class SearchFeedbackCB(CallbackData, prefix="unifb"):
+    action: str  # yes | no
+
+
+class AliasDoneCB(CallbackData, prefix="aliasdone"):
+    pass
+
+
+class UniReqCB(CallbackData, prefix="unireq"):
+    action: str  # approve | reject | edit
+    request_id: str
+
+
+class AliasSugCB(CallbackData, prefix="aliassug"):
+    action: str  # approve | reject | edit
+    suggestion_id: str
+
+
+class ReviewEditCB(CallbackData, prefix="revedit"):
+    action: str  # cancel
+
+
 class RegFormCB(CallbackData, prefix="regform"):
     action: str  # submit | restart | cancel
 

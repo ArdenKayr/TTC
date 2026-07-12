@@ -21,10 +21,20 @@ class RegistrationRequest(Base):
     )
     # Not an FK to users: the applicant usually has no users row yet.
     tg_id: Mapped[int] = mapped_column(sa.BigInteger, index=True)
+    # Имя/ник — как человек просит к нему обращаться (не паспортное ФИО).
     full_name: Mapped[str] = mapped_column(sa.String(255))
-    university_id: Mapped[int] = mapped_column(sa.ForeignKey("universities.university_id"))
-    university_group: Mapped[str] = mapped_column(sa.String(50))
+    university_id: Mapped[int | None] = mapped_column(
+        sa.ForeignKey("universities.university_id")
+    )
+    university_group: Mapped[str | None] = mapped_column(sa.String(50))
     birth_date: Mapped[date]
+    # «О себе» — для тех, кто не учится в вузе СПб.
+    about_text: Mapped[str | None] = mapped_column(sa.Text)
+    # Заполнено, если человек подал заявку на новый вуз: карточка регистрации
+    # отправляется админам только после решения по этой заявке.
+    university_request_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("university_requests.request_id", name="fk_reg_requests_university_request")
+    )
     raw_input_snapshot: Mapped[dict | None] = mapped_column(JSONB)
     status: Mapped[RequestStatus] = mapped_column(
         request_status_enum,

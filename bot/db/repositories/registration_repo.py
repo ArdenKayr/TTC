@@ -12,6 +12,20 @@ async def get(session: AsyncSession, request_id: uuid.UUID) -> RegistrationReque
     return await session.get(RegistrationRequest, request_id)
 
 
+async def get_pending_by_university_request(
+    session: AsyncSession, university_request_id: uuid.UUID
+) -> RegistrationRequest | None:
+    result = await session.execute(
+        select(RegistrationRequest)
+        .where(
+            RegistrationRequest.university_request_id == university_request_id,
+            RegistrationRequest.status == RequestStatus.PENDING,
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def has_pending(session: AsyncSession, tg_id: int) -> bool:
     result = await session.execute(
         select(RegistrationRequest.request_id)

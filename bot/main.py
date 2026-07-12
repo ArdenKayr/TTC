@@ -14,6 +14,7 @@ from bot.middlewares.role_guard import UserLoaderMiddleware
 from bot.routers.admin.content_admin import router as content_admin_router
 from bot.routers.admin.moderation import router as moderation_router
 from bot.routers.admin.registration_review import router as registration_review_router
+from bot.routers.admin.university_review import router as university_review_router
 from bot.routers.common import router as common_router
 from bot.routers.group.topic_guards import router as topic_guards_router
 from bot.routers.registration import router as registration_router
@@ -47,6 +48,7 @@ async def main() -> None:
 
     dp.include_routers(
         registration_review_router,
+        university_review_router,
         moderation_router,
         content_admin_router,
         registration_router,
