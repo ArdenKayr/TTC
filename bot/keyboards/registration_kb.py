@@ -7,7 +7,7 @@ from aiogram.types import (
 
 from bot import texts
 from bot.db.models import University
-from bot.keyboards.callback_data import UniversityPickCB
+from bot.keyboards.callback_data import UniPageCB, UniShowAllCB, UniversityPickCB
 
 _CANCEL_ROW = [KeyboardButton(text=texts.BTN.REG_CANCEL)]
 
@@ -32,21 +32,14 @@ def uni_menu_kb() -> ReplyKeyboardMarkup:
     )
 
 
-def uni_search_inline_kb() -> InlineKeyboardMarkup:
-    """Кнопка живого списка вузов (открывает inline-поиск в этом же чате)."""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=texts.BTN.UNI_SEARCH, switch_inline_query_current_chat=""
-                )
-            ]
-        ]
-    )
+def university_browser_kb(
+    universities: list[University], page: int, pages: int, filtered: bool
+) -> InlineKeyboardMarkup | None:
+    """Листаемый список вузов: столбик кнопок + стрелки страниц.
 
-
-def university_results_kb(universities: list[University]) -> InlineKeyboardMarkup:
-    """Результаты обычного (введённого сообщением) поиска — кнопки под сообщением."""
+    filtered=True — список сужен запросом, добавляется «Показать все вузы».
+    Возвращает None, если показывать нечего (пустой справочник).
+    """
     rows = []
     for uni in universities:
         label = uni.canonical_name
@@ -62,7 +55,26 @@ def university_results_kb(universities: list[University]) -> InlineKeyboardMarku
                 )
             ]
         )
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    nav = []
+    if page > 0:
+        nav.append(
+            InlineKeyboardButton(
+                text=texts.BTN.UNI_PAGE_PREV, callback_data=UniPageCB(page=page - 1).pack()
+            )
+        )
+    if page < pages - 1:
+        nav.append(
+            InlineKeyboardButton(
+                text=texts.BTN.UNI_PAGE_NEXT, callback_data=UniPageCB(page=page + 1).pack()
+            )
+        )
+    if nav:
+        rows.append(nav)
+    if filtered:
+        rows.append(
+            [InlineKeyboardButton(text=texts.BTN.UNI_SHOW_ALL, callback_data=UniShowAllCB().pack())]
+        )
+    return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
 
 def search_feedback_kb() -> ReplyKeyboardMarkup:

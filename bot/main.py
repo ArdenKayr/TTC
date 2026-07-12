@@ -17,7 +17,6 @@ from bot.routers.admin.registration_review import router as registration_review_
 from bot.routers.admin.university_review import router as university_review_router
 from bot.routers.common import router as common_router
 from bot.routers.group.topic_guards import router as topic_guards_router
-from bot.routers.inline_search import router as inline_search_router
 from bot.routers.registration import router as registration_router
 
 logging.basicConfig(level=logging.INFO)
@@ -55,7 +54,6 @@ async def main() -> None:
         registration_router,
         topic_guards_router,
         common_router,
-        inline_search_router,
     )
 
     await bot.delete_webhook(drop_pending_updates=True)

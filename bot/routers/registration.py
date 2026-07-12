@@ -8,21 +8,22 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from aiogram.exceptions import TelegramAPIError
+
 from bot import limits, texts
 from bot.db.models import University, User
 from bot.db.repositories import alias_suggestion_repo, university_repo
-from bot.keyboards.callback_data import StartCB, UniversityPickCB
+from bot.keyboards.callback_data import StartCB, UniPageCB, UniShowAllCB, UniversityPickCB
 from bot.keyboards.common_kb import main_menu_kb
-from bot.routers.common import send_start_screen
 from bot.keyboards.registration_kb import (
     alias_step_kb,
     confirm_kb,
     form_cancel_kb,
     search_feedback_kb,
     uni_menu_kb,
-    uni_search_inline_kb,
-    university_results_kb,
+    university_browser_kb,
 )
+from bot.routers.common import send_start_screen
 from bot.services import registration_service, university_service
 from bot.states.registration_states import RegistrationForm
 
@@ -45,10 +46,51 @@ async def _begin_form(message: Message, state: FSMContext) -> None:
     await message.answer(texts.REG_START, reply_markup=form_cancel_kb())
 
 
-async def _ask_university(message: Message, state: FSMContext) -> None:
+async def _render_browser(session: AsyncSession, query: str | None, page: int):
+    """Текст и кнопки страницы листаемого списка вузов."""
+    items, total = await university_repo.browse(
+        session, query, limit=limits.UNI_PAGE_SIZE, offset=page * limits.UNI_PAGE_SIZE
+    )
+    pages = max(1, -(-total // limits.UNI_PAGE_SIZE))  # округление вверх
+    if total == 0:
+        text = (
+            texts.REG_UNI_BROWSER_EMPTY.format(query=escape(query))
+            if query
+            else texts.REG_UNI_BROWSER_NO_DATA
+        )
+    elif query:
+        text = texts.REG_UNI_BROWSER_FILTERED.format(
+            query=escape(query), page=page + 1, pages=pages
+        )
+    else:
+        text = texts.REG_UNI_BROWSER_ALL.format(page=page + 1, pages=pages)
+    return text, university_browser_kb(items, page, pages, filtered=bool(query))
+
+
+async def _send_browser(
+    message: Message, state: FSMContext, session: AsyncSession, query: str | None
+) -> None:
+    """Шлёт новую страницу списка, снимая кнопки со старой (чтобы не путали)."""
+    data = await state.get_data()
+    old_mid = data.get("browser_mid")
+    if old_mid:
+        try:
+            await message.bot.edit_message_reply_markup(
+                chat_id=message.chat.id, message_id=old_mid, reply_markup=None
+            )
+        except TelegramAPIError:
+            pass
+    text, kb = await _render_browser(session, query, page=0)
+    sent = await message.answer(text, reply_markup=kb)
+    await state.update_data(university_query=query, browser_mid=sent.message_id)
+
+
+async def _ask_university(
+    message: Message, state: FSMContext, session: AsyncSession
+) -> None:
     await state.set_state(RegistrationForm.university_search)
     await message.answer(texts.REG_UNI_PROMPT, reply_markup=uni_menu_kb())
-    await message.answer(texts.REG_UNI_SEARCH_HINT, reply_markup=uni_search_inline_kb())
+    await _send_browser(message, state, session, query=None)
 
 
 async def _ask_group(message: Message, state: FSMContext) -> None:
@@ -129,7 +171,7 @@ async def form_start_over(
 
 
 @router.message(RegistrationForm.nick, F.text, ~F.text.startswith("/"))
-async def form_nick(message: Message, state: FSMContext) -> None:
+async def form_nick(message: Message, session: AsyncSession, state: FSMContext) -> None:
     nick = message.text.strip()
     if not _valid_line(nick, limits.NICK_MIN, limits.NICK_MAX):
         await message.answer(
@@ -137,7 +179,7 @@ async def form_nick(message: Message, state: FSMContext) -> None:
         )
         return
     await state.update_data(nick=nick)
-    await _ask_university(message, state)
+    await _ask_university(message, state, session)
 
 
 # --- Шаг вуза: кнопки меню (доступны сразу) ---
@@ -162,7 +204,7 @@ async def form_no_university(message: Message, state: FSMContext) -> None:
     )
 
 
-# --- Шаг вуза: выбор из живого списка или обычный поиск ---
+# --- Шаг вуза: листаемый список, сужающийся по запросу ---
 
 
 @router.message(RegistrationForm.university_search, F.text, ~F.text.startswith("/"))
@@ -170,18 +212,43 @@ async def form_university_search(
     message: Message, session: AsyncSession, state: FSMContext
 ) -> None:
     query = message.text.strip()
-    picked_name = query.removeprefix(texts.INLINE_PICK_PREFIX).strip()
-    university = await university_repo.find_by_exact_name(session, picked_name)
+    university = await university_repo.find_by_exact_name(session, query)
     if university is not None:
         await _university_chosen(message, state, university)
         return
-    await state.update_data(university_query=query)
-    results = await university_repo.search(session, query)
-    if results:
-        await message.answer(texts.REG_UNI_CHOOSE, reply_markup=university_results_kb(results))
-    else:
-        # Меню шага прикладываем заново — восстановит кнопки, если они пропали.
-        await message.answer(texts.REG_UNI_NOT_FOUND, reply_markup=uni_menu_kb())
+    await _send_browser(message, state, session, query=query)
+
+
+@router.callback_query(RegistrationForm.university_search, UniPageCB.filter())
+async def form_university_page(
+    callback: CallbackQuery,
+    callback_data: UniPageCB,
+    session: AsyncSession,
+    state: FSMContext,
+) -> None:
+    """Стрелки ⬅️➡️: перелистываем список, редактируя то же сообщение."""
+    data = await state.get_data()
+    text, kb = await _render_browser(
+        session, data.get("university_query"), page=max(0, callback_data.page)
+    )
+    try:
+        await callback.message.edit_text(text, reply_markup=kb)
+    except TelegramAPIError:
+        pass  # страница не изменилась — просто гасим «часики» на кнопке
+    await callback.answer()
+
+
+@router.callback_query(RegistrationForm.university_search, UniShowAllCB.filter())
+async def form_university_show_all(
+    callback: CallbackQuery, session: AsyncSession, state: FSMContext
+) -> None:
+    await state.update_data(university_query=None)
+    text, kb = await _render_browser(session, None, page=0)
+    try:
+        await callback.message.edit_text(text, reply_markup=kb)
+    except TelegramAPIError:
+        pass
+    await callback.answer()
 
 
 @router.callback_query(RegistrationForm.university_search, UniversityPickCB.filter())

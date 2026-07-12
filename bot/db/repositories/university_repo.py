@@ -22,45 +22,77 @@ async def get(session: AsyncSession, university_id: int) -> University | None:
     return await session.get(University, university_id)
 
 
-async def search(session: AsyncSession, query: str, limit: int = 5) -> list[University]:
-    """Поиск вуза по названию и вариантам, лояльный к опечаткам и сокращениям.
+def _fuzzy_parts(query: str):
+    """Условие «вуз похож на запрос» и выражение похожести для сортировки.
 
-    Сходство считается и по полному названию, и по каждому варианту поиска.
     similarity — общее сходство строк (ловит опечатки),
     word_similarity — сходство запроса с куском строки (ловит короткие
-    запросы вида «политех» против длинного официального названия).
+    запросы вида «политех» против длинного официального названия);
+    и то же самое по каждому варианту названия (алиасу).
     """
-    query = normalize_query(query)
-    if not query:
-        return []
     name_sim = func.similarity(University.canonical_name, query)
     name_wsim = func.word_similarity(query, University.canonical_name)
     alias_sim = func.similarity(UniversityAlias.alias_text, query)
     alias_wsim = func.word_similarity(query, UniversityAlias.alias_text)
+    condition = or_(
+        name_sim > 0.2,
+        name_wsim > 0.45,
+        University.canonical_name.ilike(f"%{query}%"),
+        alias_sim > 0.3,
+        alias_wsim > 0.5,
+        UniversityAlias.alias_text.ilike(f"%{query}%"),
+    )
     score = func.max(
         func.greatest(
             name_sim, name_wsim, func.coalesce(alias_sim, 0), func.coalesce(alias_wsim, 0)
         )
     ).label("score")
+    return condition, score
+
+
+async def browse(
+    session: AsyncSession, query: str | None, limit: int, offset: int
+) -> tuple[list[University], int]:
+    """Страница листаемого списка вузов + сколько их всего подходит.
+
+    Без запроса — все вузы по алфавиту; с запросом — похожие, лучшие первыми.
+    """
+    if query:
+        query = normalize_query(query)
+    if not query:
+        total = (
+            await session.execute(select(func.count()).select_from(University))
+        ).scalar_one()
+        return await list_all(session, limit=limit, offset=offset), total
+
+    condition, score = _fuzzy_parts(query)
+    total = (
+        await session.execute(
+            select(func.count(func.distinct(University.university_id)))
+            .select_from(University)
+            .outerjoin(
+                UniversityAlias, UniversityAlias.university_id == University.university_id
+            )
+            .where(condition)
+        )
+    ).scalar_one()
     stmt = (
         select(University, score)
         .outerjoin(UniversityAlias, UniversityAlias.university_id == University.university_id)
-        .where(
-            or_(
-                name_sim > 0.2,
-                name_wsim > 0.45,
-                University.canonical_name.ilike(f"%{query}%"),
-                alias_sim > 0.3,
-                alias_wsim > 0.5,
-                UniversityAlias.alias_text.ilike(f"%{query}%"),
-            )
-        )
+        .where(condition)
         .group_by(University.university_id)
         .order_by(desc(literal_column("score")))
         .limit(limit)
+        .offset(offset)
     )
     result = await session.execute(stmt)
-    return [row[0] for row in result.all()]
+    return [row[0] for row in result.all()], total
+
+
+async def search(session: AsyncSession, query: str, limit: int = 5) -> list[University]:
+    """Топ вузов, похожих на запрос (первая страница browse)."""
+    items, _ = await browse(session, query, limit=limit, offset=0)
+    return items if normalize_query(query) else []
 
 
 async def list_all(session: AsyncSession, limit: int = 50, offset: int = 0) -> list[University]:

@@ -10,6 +10,14 @@ class UniversityPickCB(CallbackData, prefix="unipick"):
     university_id: int
 
 
+class UniPageCB(CallbackData, prefix="unipage"):
+    page: int
+
+
+class UniShowAllCB(CallbackData, prefix="unishowall"):
+    pass
+
+
 class UniReqCB(CallbackData, prefix="unireq"):
     action: str  # approve | reject | edit
     request_id: str
