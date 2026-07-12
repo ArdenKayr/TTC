@@ -3,16 +3,17 @@ from html import escape
 
 from aiogram import F, Router
 from aiogram.enums import ChatType
-from aiogram.filters import Command, StateFilter
+from aiogram.filters import Command, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import limits, texts
-from bot.db.models import University
+from bot.db.models import University, User
 from bot.db.repositories import alias_suggestion_repo, university_repo
 from bot.keyboards.callback_data import StartCB, UniversityPickCB
 from bot.keyboards.common_kb import main_menu_kb
+from bot.routers.common import send_start_screen
 from bot.keyboards.registration_kb import (
     alias_step_kb,
     confirm_kb,
@@ -106,7 +107,7 @@ async def cb_start_register(
     await callback.answer()
 
 
-# --- Отмена из любого шага (кнопка меню «🚫 Отмена») ---
+# --- Выходы из анкеты: «🚫 Отмена» и спасательный /start ---
 
 
 @router.message(StateFilter(RegistrationForm), F.text == texts.BTN.REG_CANCEL)
@@ -115,10 +116,19 @@ async def form_cancel(message: Message, state: FSMContext) -> None:
     await message.answer(texts.REG_CANCELLED, reply_markup=main_menu_kb(registered=False))
 
 
+@router.message(StateFilter(RegistrationForm), CommandStart())
+async def form_start_over(
+    message: Message, session: AsyncSession, state: FSMContext, db_user: User | None
+) -> None:
+    """/start посреди анкеты выводит на главный экран (анкета сбрасывается)."""
+    await state.clear()
+    await send_start_screen(message, session, db_user)
+
+
 # --- Имя/ник ---
 
 
-@router.message(RegistrationForm.nick, F.text)
+@router.message(RegistrationForm.nick, F.text, ~F.text.startswith("/"))
 async def form_nick(message: Message, state: FSMContext) -> None:
     nick = message.text.strip()
     if not _valid_line(nick, limits.NICK_MIN, limits.NICK_MAX):
@@ -155,7 +165,7 @@ async def form_no_university(message: Message, state: FSMContext) -> None:
 # --- Шаг вуза: выбор из живого списка или обычный поиск ---
 
 
-@router.message(RegistrationForm.university_search, F.text)
+@router.message(RegistrationForm.university_search, F.text, ~F.text.startswith("/"))
 async def form_university_search(
     message: Message, session: AsyncSession, state: FSMContext
 ) -> None:
@@ -170,7 +180,8 @@ async def form_university_search(
     if results:
         await message.answer(texts.REG_UNI_CHOOSE, reply_markup=university_results_kb(results))
     else:
-        await message.answer(texts.REG_UNI_NOT_FOUND)
+        # Меню шага прикладываем заново — восстановит кнопки, если они пропали.
+        await message.answer(texts.REG_UNI_NOT_FOUND, reply_markup=uni_menu_kb())
 
 
 @router.callback_query(RegistrationForm.university_search, UniversityPickCB.filter())
@@ -211,7 +222,7 @@ async def form_feedback_no(message: Message, state: FSMContext) -> None:
     )
 
 
-@router.message(RegistrationForm.search_feedback, F.text)
+@router.message(RegistrationForm.search_feedback, F.text, ~F.text.startswith("/"))
 async def form_feedback_other(message: Message) -> None:
     await message.answer(texts.REG_USE_BUTTONS)
 
@@ -224,7 +235,7 @@ async def form_alias_done(message: Message, state: FSMContext) -> None:
     await _ask_group(message, state)
 
 
-@router.message(RegistrationForm.alias_suggest, F.text)
+@router.message(RegistrationForm.alias_suggest, F.text, ~F.text.startswith("/"))
 async def form_alias_suggest(message: Message, session: AsyncSession, state: FSMContext) -> None:
     alias = message.text.strip()
     if not _valid_line(alias, limits.ALIAS_MIN, limits.ALIAS_MAX):
@@ -273,7 +284,7 @@ async def form_alias_suggest(message: Message, session: AsyncSession, state: FSM
 # --- «Не учусь в вузе СПб» — рассказ о себе ---
 
 
-@router.message(RegistrationForm.no_uni_about, F.text)
+@router.message(RegistrationForm.no_uni_about, F.text, ~F.text.startswith("/"))
 async def form_about(message: Message, state: FSMContext) -> None:
     about = message.text.strip()
     if len(about) < limits.ABOUT_MIN:
@@ -292,7 +303,7 @@ async def form_about(message: Message, state: FSMContext) -> None:
 # --- Заявка на новый вуз ---
 
 
-@router.message(RegistrationForm.uni_new_name, F.text)
+@router.message(RegistrationForm.uni_new_name, F.text, ~F.text.startswith("/"))
 async def form_uni_new_name(message: Message, state: FSMContext) -> None:
     name = message.text.strip()
     if not _valid_line(name, 5, 255):
@@ -314,7 +325,7 @@ async def form_uni_new_aliases_done(message: Message, state: FSMContext) -> None
     await message.answer(texts.REG_UNI_NEW_LINK_PROMPT, reply_markup=form_cancel_kb())
 
 
-@router.message(RegistrationForm.uni_new_aliases, F.text)
+@router.message(RegistrationForm.uni_new_aliases, F.text, ~F.text.startswith("/"))
 async def form_uni_new_alias(message: Message, state: FSMContext) -> None:
     alias = message.text.strip()
     if not _valid_line(alias, limits.ALIAS_MIN, limits.ALIAS_MAX):
@@ -341,7 +352,7 @@ async def form_uni_new_alias(message: Message, state: FSMContext) -> None:
         await message.answer(texts.REG_UNI_NEW_LINK_PROMPT, reply_markup=form_cancel_kb())
 
 
-@router.message(RegistrationForm.uni_new_link, F.text)
+@router.message(RegistrationForm.uni_new_link, F.text, ~F.text.startswith("/"))
 async def form_uni_new_link(message: Message, state: FSMContext) -> None:
     link = message.text.strip()
     if not _valid_link(link):
@@ -354,7 +365,7 @@ async def form_uni_new_link(message: Message, state: FSMContext) -> None:
 # --- Группа и дата рождения ---
 
 
-@router.message(RegistrationForm.university_group, F.text)
+@router.message(RegistrationForm.university_group, F.text, ~F.text.startswith("/"))
 async def form_university_group(message: Message, state: FSMContext) -> None:
     group = message.text.strip()
     if not group or len(group) > 50:
@@ -365,7 +376,7 @@ async def form_university_group(message: Message, state: FSMContext) -> None:
     await message.answer(texts.REG_BIRTH_PROMPT)
 
 
-@router.message(RegistrationForm.birth_date, F.text)
+@router.message(RegistrationForm.birth_date, F.text, ~F.text.startswith("/"))
 async def form_birth_date(message: Message, state: FSMContext) -> None:
     try:
         birth_date = datetime.strptime(message.text.strip(), "%d.%m.%Y").date()
@@ -429,6 +440,6 @@ async def form_submit(message: Message, session: AsyncSession, state: FSMContext
     await message.answer(submitted, reply_markup=main_menu_kb(registered=False))
 
 
-@router.message(RegistrationForm.confirm, F.text)
+@router.message(RegistrationForm.confirm, F.text, ~F.text.startswith("/"))
 async def form_confirm_other(message: Message) -> None:
     await message.answer(texts.REG_USE_BUTTONS)

@@ -13,8 +13,13 @@ from bot.services import content_service, notification_service
 router = Router(name="common")
 
 
-@router.message(CommandStart(), F.chat.type == ChatType.PRIVATE)
-async def cmd_start(message: Message, session: AsyncSession, db_user: User | None) -> None:
+async def send_start_screen(
+    message: Message, session: AsyncSession, db_user: User | None
+) -> None:
+    """Главный экран: приветствие/статус + постоянное меню внизу.
+
+    Используется и командой /start здесь, и «спасательным» /start внутри анкеты.
+    """
     if db_user is None:
         content = await content_service.get_content(session, "welcome")
         await content_service.send_content(
@@ -26,6 +31,11 @@ async def cmd_start(message: Message, session: AsyncSession, db_user: User | Non
         texts.START_REGISTERED.format(name=db_user.display_name, role=role),
         reply_markup=main_menu_kb(registered=True),
     )
+
+
+@router.message(CommandStart(), F.chat.type == ChatType.PRIVATE)
+async def cmd_start(message: Message, session: AsyncSession, db_user: User | None) -> None:
+    await send_start_screen(message, session, db_user)
 
 
 @router.message(F.chat.type == ChatType.PRIVATE, F.text == texts.BTN.START_ABOUT)
