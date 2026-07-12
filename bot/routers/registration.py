@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import texts
 from bot.db.repositories import university_repo
-from bot.keyboards.callback_data import RegFormCB, UniversityNewCB, UniversityPickCB
+from bot.keyboards.callback_data import RegFormCB, StartCB, UniversityNewCB, UniversityPickCB
 from bot.keyboards.registration_kb import confirm_kb, university_results_kb
 from bot.services import registration_service
 from bot.states.registration_states import RegistrationForm
@@ -26,6 +26,20 @@ async def cmd_register(message: Message, session: AsyncSession, state: FSMContex
     await state.clear()
     await state.set_state(RegistrationForm.full_name)
     await message.answer(texts.REG_START)
+
+
+@router.callback_query(StartCB.filter(F.action == "register"))
+async def cb_start_register(
+    callback: CallbackQuery, session: AsyncSession, state: FSMContext
+) -> None:
+    error = await registration_service.check_can_apply(session, callback.from_user.id)
+    if error:
+        await callback.answer(error, show_alert=True)
+        return
+    await state.clear()
+    await state.set_state(RegistrationForm.full_name)
+    await callback.message.answer(texts.REG_START)
+    await callback.answer()
 
 
 @router.message(RegistrationForm.full_name, F.text)

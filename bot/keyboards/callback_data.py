@@ -16,3 +16,15 @@ class UniversityNewCB(CallbackData, prefix="uninew"):
 
 class RegFormCB(CallbackData, prefix="regform"):
     action: str  # submit | restart | cancel
+
+
+class StartCB(CallbackData, prefix="start"):
+    action: str  # register | about
+
+
+class ContentSlotCB(CallbackData, prefix="cslot"):
+    slot: str
+
+
+class ContentActionCB(CallbackData, prefix="cact"):
+    action: str  # remove_file | cancel

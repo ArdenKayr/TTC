@@ -64,3 +64,4 @@ class AuditAction(str, Enum):
     USER_UNBANNED = "user_unbanned"
     ROLE_CHANGED = "role_changed"
     UNIVERSITY_ADDED = "university_added"
+    CONTENT_UPDATED = "content_updated"

@@ -11,6 +11,7 @@ from bot.config import settings
 from bot.middlewares.ban_guard import BanGuardMiddleware
 from bot.middlewares.db_session import DbSessionMiddleware
 from bot.middlewares.role_guard import UserLoaderMiddleware
+from bot.routers.admin.content_admin import router as content_admin_router
 from bot.routers.admin.moderation import router as moderation_router
 from bot.routers.admin.registration_review import router as registration_review_router
 from bot.routers.common import router as common_router
@@ -47,6 +48,7 @@ async def main() -> None:
     dp.include_routers(
         registration_review_router,
         moderation_router,
+        content_admin_router,
         registration_router,
         topic_guards_router,
         common_router,
