@@ -1,5 +1,6 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from bot import texts
 from bot.db.models import University
 from bot.keyboards.callback_data import RegFormCB, UniversityNewCB, UniversityPickCB
 
@@ -23,7 +24,7 @@ def university_results_kb(universities: list[University]) -> InlineKeyboardMarku
     rows.append(
         [
             InlineKeyboardButton(
-                text="➕ Моего вуза нет в списке", callback_data=UniversityNewCB().pack()
+                text=texts.BTN.UNI_NOT_LISTED, callback_data=UniversityNewCB().pack()
             )
         ]
     )
@@ -35,15 +36,15 @@ def confirm_kb() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="✅ Отправить", callback_data=RegFormCB(action="submit").pack()
+                    text=texts.BTN.REG_SUBMIT, callback_data=RegFormCB(action="submit").pack()
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="✏️ Заполнить заново", callback_data=RegFormCB(action="restart").pack()
+                    text=texts.BTN.REG_RESTART, callback_data=RegFormCB(action="restart").pack()
                 ),
                 InlineKeyboardButton(
-                    text="🚫 Отмена", callback_data=RegFormCB(action="cancel").pack()
+                    text=texts.BTN.REG_CANCEL, callback_data=RegFormCB(action="cancel").pack()
                 ),
             ],
         ]

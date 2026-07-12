@@ -4,6 +4,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot import texts
 from bot.config import settings
 from bot.db.models import User
 from bot.db.repositories import audit_repo
@@ -17,11 +18,11 @@ async def set_role(
 ) -> str | None:
     """Returns a user-facing error, or None on success."""
     if new_role not in ASSIGNABLE_ROLES:
-        return "Эту роль нельзя назначить напрямую. Для бана используйте /ban."
+        return texts.ROLE_NOT_ASSIGNABLE
     if target.current_role == UserRole.BANNED:
-        return "Пользователь забанен — сначала снимите бан (/unban)."
+        return texts.ROLE_TARGET_BANNED
     if target.current_role == new_role:
-        return f"У пользователя уже роль {new_role.value}."
+        return texts.ROLE_ALREADY_SET.format(role=new_role.value)
     old_role = target.current_role
     target.current_role = new_role
     await audit_repo.add(
@@ -41,7 +42,7 @@ async def ban_user(
     session: AsyncSession, bot: Bot, actor: User, target: User, reason: str | None
 ) -> str | None:
     if target.current_role == UserRole.BANNED:
-        return "Пользователь уже забанен."
+        return texts.BAN_ALREADY
     target.role_before_ban = target.current_role
     target.current_role = UserRole.BANNED
     target.banned_at = datetime.now(timezone.utc)
@@ -66,7 +67,7 @@ async def ban_user(
 
 async def unban_user(session: AsyncSession, bot: Bot, actor: User, target: User) -> str | None:
     if target.current_role != UserRole.BANNED:
-        return "Пользователь не забанен."
+        return texts.UNBAN_NOT_BANNED
     restored = target.role_before_ban or UserRole.USER
     target.current_role = restored
     target.role_before_ban = None

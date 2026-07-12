@@ -4,6 +4,7 @@ from aiogram import F, Router
 from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot import texts
 from bot.db.models import User
 from bot.filters.role_filter import IsAdmin
 from bot.keyboards.callback_data import RegReviewCB
@@ -19,7 +20,7 @@ async def _apply_review_result(callback: CallbackQuery, ok: bool, note: str) -> 
     await callback.message.edit_text(
         callback.message.html_text + f"\n\n{note}", reply_markup=None
     )
-    await callback.answer("Готово")
+    await callback.answer(texts.REVIEW_DONE)
 
 
 @router.callback_query(RegReviewCB.filter(F.action == "approve"), IsAdmin())
@@ -50,4 +51,4 @@ async def cb_reject(
 
 @router.callback_query(RegReviewCB.filter())
 async def cb_not_admin(callback: CallbackQuery) -> None:
-    await callback.answer("⛔ Действие доступно только админам.", show_alert=True)
+    await callback.answer(texts.REVIEW_ADMIN_ONLY, show_alert=True)

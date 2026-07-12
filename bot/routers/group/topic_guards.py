@@ -3,6 +3,7 @@ from aiogram.enums import ChatType
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import Message
 
+from bot import texts
 from bot.config import settings
 from bot.db.models import User
 from bot.enums import UserRole
@@ -34,5 +35,6 @@ async def group_message(message: Message, db_user: User | None) -> None:
         sender = message.from_user
         who = f"@{sender.username}" if sender.username else sender.full_name
         await notification_service.send_admin_report(
-            message.bot, f"⚠️ Вызов админа в группе от {who}:\n{_message_link(message)}"
+            message.bot,
+            texts.ADMIN_CALL_REPORT.format(who=who, link=_message_link(message)),
         )

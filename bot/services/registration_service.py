@@ -6,6 +6,7 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.types import User as TgUser
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot import texts
 from bot.config import settings
 from bot.db.models import RegistrationRequest, User
 from bot.db.repositories import audit_repo, registration_repo, university_repo, user_repo
@@ -26,14 +27,14 @@ async def check_can_apply(session: AsyncSession, tg_id: int) -> str | None:
     user = await user_repo.get_by_tg_id(session, tg_id)
     if user is not None:
         if user.current_role == UserRole.BANNED:
-            return "⛔ Доступ заблокирован."
-        return "Вы уже зарегистрированы."
+            return texts.BANNED_ALERT
+        return texts.APPLY_ALREADY_REGISTERED
     if await registration_repo.has_pending(session, tg_id):
-        return "Ваша заявка уже на рассмотрении. Ожидайте решения администраторов."
+        return texts.APPLY_PENDING
     next_allowed = await registration_repo.latest_next_allowed_attempt(session, tg_id)
     if next_allowed is not None and next_allowed > _utcnow():
         minutes_left = int((next_allowed - _utcnow()).total_seconds() // 60) + 1
-        return f"⏳ Повторная подача заявки будет доступна через {minutes_left} мин."
+        return texts.APPLY_THROTTLED.format(minutes=minutes_left)
     return None
 
 
@@ -78,15 +79,16 @@ async def submit_request(
 
     university_label = form.get("university_name") or new_university_name
     if is_new_university:
-        university_label += " ⚠️ (новый вуз, не из справочника)"
-    username = f"@{applicant.username}" if applicant.username else "без юзернейма"
-    card = (
-        f"🆕 <b>Заявка на регистрацию</b> (попытка №{request.attempt_number})\n"
-        f"👤 {form['full_name']}\n"
-        f"🔗 {username} · id <code>{applicant.id}</code>\n"
-        f"🎓 {university_label}\n"
-        f"👥 Группа: {form['university_group']}\n"
-        f"🎂 {request.birth_date.strftime('%d.%m.%Y')}"
+        university_label += texts.REG_CARD_NEW_UNI_SUFFIX
+    username = f"@{applicant.username}" if applicant.username else texts.USERNAME_MISSING
+    card = texts.REG_CARD.format(
+        attempt=request.attempt_number,
+        name=form["full_name"],
+        username=username,
+        tg_id=applicant.id,
+        university=university_label,
+        group=form["university_group"],
+        birth_date=request.birth_date.strftime("%d.%m.%Y"),
     )
     await notification_service.send_admin_card(
         bot, card, registration_review_kb(request.request_id)
@@ -100,12 +102,12 @@ async def approve(
 ) -> tuple[bool, str]:
     request = await registration_repo.get(session, request_id)
     if request is None:
-        return False, "Заявка не найдена."
+        return False, texts.REVIEW_NOT_FOUND
     claimed = await registration_repo.try_mark_processed(
         session, request_id, RequestStatus.APPROVED, admin.tg_id, _utcnow()
     )
     if not claimed:
-        return False, "Заявка уже обработана другим админом."
+        return False, texts.REVIEW_ALREADY_PROCESSED
 
     snapshot = request.raw_input_snapshot or {}
     await user_repo.upsert_from_registration(
@@ -128,20 +130,17 @@ async def approve(
                 expire_date=_utcnow() + INVITE_LINK_TTL,
                 member_limit=1,
             )
-            invite_line = (
-                "\n\nСсылка для вступления в группу (одноразовая, действует 15 минут):\n"
-                f"{link.invite_link}"
-            )
+            invite_line = texts.APPROVED_DM_INVITE.format(link=link.invite_link)
         except TelegramAPIError:
-            notes.append("⚠️ Не удалось создать инвайт-ссылку (проверьте права бота в группе).")
+            notes.append(texts.NOTE_LINK_FAILED)
     else:
-        notes.append("⚠️ GROUP_CHAT_ID не настроен — инвайт-ссылка не создана.")
+        notes.append(texts.NOTE_GROUP_NOT_SET)
 
     delivered = await notification_service.dm_user(
-        bot, request.tg_id, "🎉 Ваша заявка одобрена! Добро пожаловать." + invite_line
+        bot, request.tg_id, texts.APPROVED_DM + invite_line
     )
     if not delivered:
-        notes.append("⚠️ Не удалось отправить сообщение пользователю.")
+        notes.append(texts.NOTE_DM_FAILED)
 
     await audit_repo.add(
         session,
@@ -153,7 +152,7 @@ async def approve(
     )
     await session.commit()
 
-    result = f"✅ Принята — {admin.display_name}"
+    result = texts.CARD_APPROVED.format(admin=admin.display_name)
     if notes:
         result += "\n" + "\n".join(notes)
     return True, result
@@ -168,7 +167,7 @@ async def reject(
 ) -> tuple[bool, str]:
     request = await registration_repo.get(session, request_id)
     if request is None:
-        return False, "Заявка не найдена."
+        return False, texts.REVIEW_NOT_FOUND
     timeout = rejection_timeout_minutes(request.attempt_number)
     now = _utcnow()
     claimed = await registration_repo.try_mark_processed(
@@ -180,17 +179,17 @@ async def reject(
         next_allowed_attempt=now + timedelta(minutes=timeout),
     )
     if not claimed:
-        return False, "Заявка уже обработана другим админом."
+        return False, texts.REVIEW_ALREADY_PROCESSED
     if reason:
         request.admin_comment = reason
 
-    text = "К сожалению, ваша заявка отклонена."
+    text = texts.REJECTED_DM
     if reason:
-        text += f"\nПричина: {reason}"
+        text += texts.REJECTED_DM_REASON.format(reason=reason)
     if timeout > 0:
-        text += f"\nПовторная подача будет доступна через {timeout} мин."
+        text += texts.REJECTED_DM_TIMEOUT.format(minutes=timeout)
     else:
-        text += "\nВы можете подать заявку повторно: /register"
+        text += texts.REJECTED_DM_RETRY
     await notification_service.dm_user(bot, request.tg_id, text)
 
     await audit_repo.add(
@@ -204,4 +203,4 @@ async def reject(
         meta={"attempt_number": request.attempt_number, "timeout_minutes": timeout},
     )
     await session.commit()
-    return True, f"❌ Отклонена — {admin.display_name}"
+    return True, texts.CARD_REJECTED.format(admin=admin.display_name)

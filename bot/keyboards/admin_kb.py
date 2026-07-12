@@ -2,6 +2,7 @@ import uuid
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from bot import texts
 from bot.keyboards.callback_data import RegReviewCB
 
 
@@ -10,11 +11,11 @@ def registration_review_kb(request_id: uuid.UUID) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="✅ Принять",
+                    text=texts.BTN.REVIEW_APPROVE,
                     callback_data=RegReviewCB(action="approve", request_id=str(request_id)).pack(),
                 ),
                 InlineKeyboardButton(
-                    text="❌ Отклонить",
+                    text=texts.BTN.REVIEW_REJECT,
                     callback_data=RegReviewCB(action="reject", request_id=str(request_id)).pack(),
                 ),
             ]

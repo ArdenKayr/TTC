@@ -3,43 +3,34 @@ from aiogram.enums import ChatType
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import Message
 
+from bot import texts
 from bot.db.models import User
-from bot.enums import UserRole
 from bot.services import notification_service
 
 router = Router(name="common")
-
-ROLE_LABELS = {
-    UserRole.USER: "Пользователь",
-    UserRole.ORGANIZER: "Организатор",
-    UserRole.ADMIN: "Админ",
-    UserRole.CUSTOM: "Кастомная роль",
-}
 
 
 @router.message(CommandStart(), F.chat.type == ChatType.PRIVATE)
 async def cmd_start(message: Message, db_user: User | None) -> None:
     if db_user is None:
-        await message.answer(
-            "👋 Привет! Это бот студенческого сообщества.\n\n"
-            "Чтобы вступить, подайте заявку на регистрацию: /register"
-        )
+        await message.answer(texts.START_NEW_USER)
         return
-    role = ROLE_LABELS.get(db_user.current_role, db_user.current_role.value)
-    await message.answer(f"С возвращением, {db_user.display_name}!\nВаша роль: {role}.")
+    role = texts.ROLE_LABELS.get(db_user.current_role, db_user.current_role.value)
+    await message.answer(texts.START_REGISTERED.format(name=db_user.display_name, role=role))
 
 
 @router.message(Command("report"), F.chat.type == ChatType.PRIVATE)
 async def cmd_report(message: Message, command: CommandObject, db_user: User | None) -> None:
     if db_user is None:
-        await message.answer("Репорты доступны после регистрации: /register")
+        await message.answer(texts.REPORT_NOT_REGISTERED)
         return
     text = (command.args or "").strip()
     if not text:
-        await message.answer("Использование: /report <описание проблемы или бага>")
+        await message.answer(texts.REPORT_USAGE)
         return
     username = f"@{db_user.username}" if db_user.username else f"id {db_user.tg_id}"
     await notification_service.send_admin_report(
-        message.bot, f"🐞 Репорт от {db_user.display_name} ({username}):\n\n{text}"
+        message.bot,
+        texts.REPORT_CARD.format(name=db_user.display_name, username=username, text=text),
     )
-    await message.answer("Спасибо! Репорт отправлен админам.")
+    await message.answer(texts.REPORT_SENT)

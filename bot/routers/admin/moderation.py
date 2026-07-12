@@ -3,6 +3,7 @@ from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot import texts
 from bot.db.models import User
 from bot.db.repositories import user_repo
 from bot.enums import UserRole
@@ -25,21 +26,21 @@ async def cmd_ban(
 ) -> None:
     args = (command.args or "").split(maxsplit=1)
     if not args:
-        await message.answer("Использование: /ban <tg_id | @username> [причина]")
+        await message.answer(texts.BAN_USAGE)
         return
     target = await _resolve_target(session, args[0])
     if target is None:
-        await message.answer("Пользователь не найден в базе.")
+        await message.answer(texts.USER_NOT_FOUND)
         return
     if target.tg_id == db_user.tg_id:
-        await message.answer("Нельзя забанить самого себя.")
+        await message.answer(texts.BAN_SELF)
         return
     reason = args[1] if len(args) > 1 else None
     error = await role_service.ban_user(session, message.bot, db_user, target, reason)
     if error:
         await message.answer(error)
         return
-    await message.answer(f"🔨 {target.display_name} (id {target.tg_id}) забанен.")
+    await message.answer(texts.BAN_DONE.format(name=target.display_name, tg_id=target.tg_id))
 
 
 @router.message(Command("unban"))
@@ -48,18 +49,18 @@ async def cmd_unban(
 ) -> None:
     ref = (command.args or "").strip()
     if not ref:
-        await message.answer("Использование: /unban <tg_id | @username>")
+        await message.answer(texts.UNBAN_USAGE)
         return
     target = await _resolve_target(session, ref)
     if target is None:
-        await message.answer("Пользователь не найден в базе.")
+        await message.answer(texts.USER_NOT_FOUND)
         return
     error = await role_service.unban_user(session, message.bot, db_user, target)
     if error:
         await message.answer(error)
         return
     await message.answer(
-        f"✅ {target.display_name} разбанен, роль восстановлена: {target.current_role.value}."
+        texts.UNBAN_DONE.format(name=target.display_name, role=target.current_role.value)
     )
 
 
@@ -70,19 +71,21 @@ async def cmd_setrole(
     args = (command.args or "").split()
     valid_roles = ", ".join(r.value for r in role_service.ASSIGNABLE_ROLES)
     if len(args) != 2:
-        await message.answer(f"Использование: /setrole <tg_id | @username> <{valid_roles}>")
+        await message.answer(texts.SETROLE_USAGE.format(roles=valid_roles))
         return
     try:
         new_role = UserRole(args[1].lower())
     except ValueError:
-        await message.answer(f"Неизвестная роль. Доступные: {valid_roles}")
+        await message.answer(texts.SETROLE_UNKNOWN.format(roles=valid_roles))
         return
     target = await _resolve_target(session, args[0])
     if target is None:
-        await message.answer("Пользователь не найден в базе.")
+        await message.answer(texts.USER_NOT_FOUND)
         return
     error = await role_service.set_role(session, db_user, target, new_role)
     if error:
         await message.answer(error)
         return
-    await message.answer(f"✅ Роль {target.display_name} изменена на {new_role.value}.")
+    await message.answer(
+        texts.SETROLE_DONE.format(name=target.display_name, role=new_role.value)
+    )
