@@ -1,21 +1,17 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
 from bot import texts
-from bot.keyboards.callback_data import StartCB
 
 
-def start_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=texts.BTN.START_REGISTER,
-                    callback_data=StartCB(action="register").pack(),
-                ),
-                InlineKeyboardButton(
-                    text=texts.BTN.START_ABOUT,
-                    callback_data=StartCB(action="about").pack(),
-                ),
-            ]
-        ]
+def main_menu_kb(registered: bool) -> ReplyKeyboardMarkup:
+    """Постоянное меню внизу экрана (главный экран бота)."""
+    rows = []
+    if not registered:
+        rows.append([KeyboardButton(text=texts.BTN.START_REGISTER)])
+    rows.append([KeyboardButton(text=texts.BTN.START_ABOUT)])
+    return ReplyKeyboardMarkup(
+        keyboard=rows,
+        resize_keyboard=True,
+        is_persistent=True,
+        input_field_placeholder="Выберите действие в меню",
     )

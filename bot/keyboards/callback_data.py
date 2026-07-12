@@ -10,22 +10,6 @@ class UniversityPickCB(CallbackData, prefix="unipick"):
     university_id: int
 
 
-class UniversityNewCB(CallbackData, prefix="uninew"):
-    pass
-
-
-class UniversityNoneCB(CallbackData, prefix="uninone"):
-    pass
-
-
-class SearchFeedbackCB(CallbackData, prefix="unifb"):
-    action: str  # yes | no
-
-
-class AliasDoneCB(CallbackData, prefix="aliasdone"):
-    pass
-
-
 class UniReqCB(CallbackData, prefix="unireq"):
     action: str  # approve | reject | edit
     request_id: str
@@ -38,10 +22,6 @@ class AliasSugCB(CallbackData, prefix="aliassug"):
 
 class ReviewEditCB(CallbackData, prefix="revedit"):
     action: str  # cancel
-
-
-class RegFormCB(CallbackData, prefix="regform"):
-    action: str  # submit | restart | cancel
 
 
 class StartCB(CallbackData, prefix="start"):

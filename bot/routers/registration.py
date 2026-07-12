@@ -3,27 +3,23 @@ from html import escape
 
 from aiogram import F, Router
 from aiogram.enums import ChatType
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import limits, texts
+from bot.db.models import University
 from bot.db.repositories import alias_suggestion_repo, university_repo
-from bot.keyboards.callback_data import (
-    AliasDoneCB,
-    RegFormCB,
-    SearchFeedbackCB,
-    StartCB,
-    UniversityNewCB,
-    UniversityNoneCB,
-    UniversityPickCB,
-)
+from bot.keyboards.callback_data import StartCB, UniversityPickCB
+from bot.keyboards.common_kb import main_menu_kb
 from bot.keyboards.registration_kb import (
-    alias_done_kb,
+    alias_step_kb,
     confirm_kb,
+    form_cancel_kb,
     search_feedback_kb,
-    university_prompt_kb,
+    uni_menu_kb,
+    uni_search_inline_kb,
     university_results_kb,
 )
 from bot.services import registration_service, university_service
@@ -42,9 +38,36 @@ def _valid_link(link: str) -> bool:
     return link.startswith(("http://", "https://", "t.me/", "@")) or "." in link
 
 
+async def _begin_form(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await state.set_state(RegistrationForm.nick)
+    await message.answer(texts.REG_START, reply_markup=form_cancel_kb())
+
+
+async def _ask_university(message: Message, state: FSMContext) -> None:
+    await state.set_state(RegistrationForm.university_search)
+    await message.answer(texts.REG_UNI_PROMPT, reply_markup=uni_menu_kb())
+    await message.answer(texts.REG_UNI_SEARCH_HINT, reply_markup=uni_search_inline_kb())
+
+
 async def _ask_group(message: Message, state: FSMContext) -> None:
     await state.set_state(RegistrationForm.university_group)
-    await message.answer(texts.REG_GROUP_PROMPT)
+    await message.answer(texts.REG_GROUP_PROMPT, reply_markup=form_cancel_kb())
+
+
+async def _university_chosen(
+    message: Message, state: FSMContext, university: University
+) -> None:
+    await state.update_data(
+        uni_mode="picked",
+        university_id=university.university_id,
+        university_name=university.canonical_name,
+    )
+    await state.set_state(RegistrationForm.search_feedback)
+    await message.answer(
+        texts.REG_UNI_PICKED.format(university=escape(university.canonical_name))
+    )
+    await message.answer(texts.REG_UNI_FEEDBACK, reply_markup=search_feedback_kb())
 
 
 # --- Вход в анкету ---
@@ -56,23 +79,40 @@ async def cmd_register(message: Message, session: AsyncSession, state: FSMContex
     if error:
         await message.answer(error)
         return
-    await state.clear()
-    await state.set_state(RegistrationForm.nick)
-    await message.answer(texts.REG_START)
+    await _begin_form(message, state)
+
+
+@router.message(
+    F.chat.type == ChatType.PRIVATE, StateFilter(None), F.text == texts.BTN.START_REGISTER
+)
+async def msg_menu_register(message: Message, session: AsyncSession, state: FSMContext) -> None:
+    error = await registration_service.check_can_apply(session, message.from_user.id)
+    if error:
+        await message.answer(error)
+        return
+    await _begin_form(message, state)
 
 
 @router.callback_query(StartCB.filter(F.action == "register"))
 async def cb_start_register(
     callback: CallbackQuery, session: AsyncSession, state: FSMContext
 ) -> None:
+    """Кнопка «Регистрация» под старыми приветственными сообщениями."""
     error = await registration_service.check_can_apply(session, callback.from_user.id)
     if error:
         await callback.answer(error, show_alert=True)
         return
-    await state.clear()
-    await state.set_state(RegistrationForm.nick)
-    await callback.message.answer(texts.REG_START)
+    await _begin_form(callback.message, state)
     await callback.answer()
+
+
+# --- Отмена из любого шага (кнопка меню «🚫 Отмена») ---
+
+
+@router.message(StateFilter(RegistrationForm), F.text == texts.BTN.REG_CANCEL)
+async def form_cancel(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.answer(texts.REG_CANCELLED, reply_markup=main_menu_kb(registered=False))
 
 
 # --- Имя/ник ---
@@ -87,11 +127,32 @@ async def form_nick(message: Message, state: FSMContext) -> None:
         )
         return
     await state.update_data(nick=nick)
-    await state.set_state(RegistrationForm.university_search)
-    await message.answer(texts.REG_UNI_PROMPT, reply_markup=university_prompt_kb())
+    await _ask_university(message, state)
 
 
-# --- Поиск вуза ---
+# --- Шаг вуза: кнопки меню (доступны сразу) ---
+
+
+@router.message(RegistrationForm.university_search, F.text == texts.BTN.UNI_NOT_LISTED)
+async def form_university_new(message: Message, state: FSMContext) -> None:
+    await state.update_data(uni_mode="new")
+    await state.set_state(RegistrationForm.uni_new_name)
+    await message.answer(texts.REG_UNI_NEW_PROMPT, reply_markup=form_cancel_kb())
+
+
+@router.message(RegistrationForm.university_search, F.text == texts.BTN.UNI_NONE)
+async def form_no_university(message: Message, state: FSMContext) -> None:
+    await state.update_data(
+        uni_mode="none", university_id=None, university_name=None, university_group=None
+    )
+    await state.set_state(RegistrationForm.no_uni_about)
+    await message.answer(
+        texts.REG_NO_UNI_INFO.format(min=limits.ABOUT_MIN, limit=limits.ABOUT_MAX),
+        reply_markup=form_cancel_kb(),
+    )
+
+
+# --- Шаг вуза: выбор из живого списка или обычный поиск ---
 
 
 @router.message(RegistrationForm.university_search, F.text)
@@ -99,10 +160,17 @@ async def form_university_search(
     message: Message, session: AsyncSession, state: FSMContext
 ) -> None:
     query = message.text.strip()
+    picked_name = query.removeprefix(texts.INLINE_PICK_PREFIX).strip()
+    university = await university_repo.find_by_exact_name(session, picked_name)
+    if university is not None:
+        await _university_chosen(message, state, university)
+        return
     await state.update_data(university_query=query)
     results = await university_repo.search(session, query)
-    text = texts.REG_UNI_CHOOSE if results else texts.REG_UNI_NOT_FOUND
-    await message.answer(text, reply_markup=university_results_kb(results))
+    if results:
+        await message.answer(texts.REG_UNI_CHOOSE, reply_markup=university_results_kb(results))
+    else:
+        await message.answer(texts.REG_UNI_NOT_FOUND)
 
 
 @router.callback_query(RegistrationForm.university_search, UniversityPickCB.filter())
@@ -116,43 +184,44 @@ async def form_university_pick(
     if university is None:
         await callback.answer(texts.REG_UNI_GONE, show_alert=True)
         return
-    await state.update_data(
-        uni_mode="picked",
-        university_id=university.university_id,
-        university_name=university.canonical_name,
-    )
-    await state.set_state(RegistrationForm.search_feedback)
-    await callback.message.edit_text(
-        texts.REG_UNI_PICKED.format(university=escape(university.canonical_name))
-    )
-    await callback.message.answer(texts.REG_UNI_FEEDBACK, reply_markup=search_feedback_kb())
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await _university_chosen(callback.message, state, university)
     await callback.answer()
 
 
 # --- «Удобно ли было искать?» ---
 
 
-@router.callback_query(RegistrationForm.search_feedback, SearchFeedbackCB.filter(F.action == "yes"))
-async def form_feedback_yes(callback: CallbackQuery, state: FSMContext) -> None:
-    await callback.message.edit_reply_markup(reply_markup=None)
-    await _ask_group(callback.message, state)
-    await callback.answer()
+@router.message(RegistrationForm.search_feedback, F.text == texts.BTN.UNI_FB_YES)
+async def form_feedback_yes(message: Message, state: FSMContext) -> None:
+    await _ask_group(message, state)
 
 
-@router.callback_query(RegistrationForm.search_feedback, SearchFeedbackCB.filter(F.action == "no"))
-async def form_feedback_no(callback: CallbackQuery, state: FSMContext) -> None:
+@router.message(RegistrationForm.search_feedback, F.text == texts.BTN.UNI_FB_NO)
+async def form_feedback_no(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     await state.set_state(RegistrationForm.alias_suggest)
-    await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.message.answer(
+    await message.answer(
         texts.REG_ALIAS_PROMPT.format(
             university=escape(data["university_name"]),
             limit=limits.ALIAS_SUGGESTIONS_PER_USER,
             done=texts.BTN.ALIAS_DONE,
         ),
-        reply_markup=alias_done_kb(),
+        reply_markup=alias_step_kb(),
     )
-    await callback.answer()
+
+
+@router.message(RegistrationForm.search_feedback, F.text)
+async def form_feedback_other(message: Message) -> None:
+    await message.answer(texts.REG_USE_BUTTONS)
+
+
+# --- Свои варианты поиска для выбранного вуза ---
+
+
+@router.message(RegistrationForm.alias_suggest, F.text == texts.BTN.ALIAS_DONE)
+async def form_alias_done(message: Message, state: FSMContext) -> None:
+    await _ask_group(message, state)
 
 
 @router.message(RegistrationForm.alias_suggest, F.text)
@@ -162,8 +231,7 @@ async def form_alias_suggest(message: Message, session: AsyncSession, state: FSM
         await message.answer(
             texts.REG_ALIAS_INVALID.format(
                 min=limits.ALIAS_MIN, max=limits.ALIAS_MAX, done=texts.BTN.ALIAS_DONE
-            ),
-            reply_markup=alias_done_kb(),
+            )
         )
         return
     data = await state.get_data()
@@ -193,8 +261,7 @@ async def form_alias_suggest(message: Message, session: AsyncSession, state: FSM
     await message.answer(
         texts.REG_ALIAS_ACCEPTED.format(
             alias=escape(alias), n=sent, limit=limits.ALIAS_SUGGESTIONS_PER_USER
-        ),
-        reply_markup=None if sent >= limits.ALIAS_SUGGESTIONS_PER_USER else alias_done_kb(),
+        )
     )
     if sent >= limits.ALIAS_SUGGESTIONS_PER_USER:
         await message.answer(
@@ -203,27 +270,7 @@ async def form_alias_suggest(message: Message, session: AsyncSession, state: FSM
         await _ask_group(message, state)
 
 
-@router.callback_query(RegistrationForm.alias_suggest, AliasDoneCB.filter())
-async def form_alias_done(callback: CallbackQuery, state: FSMContext) -> None:
-    await callback.message.edit_reply_markup(reply_markup=None)
-    await _ask_group(callback.message, state)
-    await callback.answer()
-
-
-# --- «Не учусь в вузе СПб» ---
-
-
-@router.callback_query(RegistrationForm.university_search, UniversityNoneCB.filter())
-async def form_no_university(callback: CallbackQuery, state: FSMContext) -> None:
-    await state.update_data(
-        uni_mode="none", university_id=None, university_name=None, university_group=None
-    )
-    await state.set_state(RegistrationForm.no_uni_about)
-    await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.message.answer(
-        texts.REG_NO_UNI_INFO.format(min=limits.ABOUT_MIN, limit=limits.ABOUT_MAX)
-    )
-    await callback.answer()
+# --- «Не учусь в вузе СПб» — рассказ о себе ---
 
 
 @router.message(RegistrationForm.no_uni_about, F.text)
@@ -239,19 +286,10 @@ async def form_about(message: Message, state: FSMContext) -> None:
         return
     await state.update_data(about_text=about)
     await state.set_state(RegistrationForm.birth_date)
-    await message.answer(texts.REG_BIRTH_PROMPT)
+    await message.answer(texts.REG_BIRTH_PROMPT, reply_markup=form_cancel_kb())
 
 
 # --- Заявка на новый вуз ---
-
-
-@router.callback_query(RegistrationForm.university_search, UniversityNewCB.filter())
-async def form_university_new(callback: CallbackQuery, state: FSMContext) -> None:
-    await state.update_data(uni_mode="new")
-    await state.set_state(RegistrationForm.uni_new_name)
-    await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.message.answer(texts.REG_UNI_NEW_PROMPT)
-    await callback.answer()
 
 
 @router.message(RegistrationForm.uni_new_name, F.text)
@@ -266,8 +304,14 @@ async def form_uni_new_name(message: Message, state: FSMContext) -> None:
         texts.REG_UNI_NEW_ALIASES_PROMPT.format(
             limit=limits.NEW_UNI_ALIASES_MAX, done=texts.BTN.ALIAS_DONE
         ),
-        reply_markup=alias_done_kb(),
+        reply_markup=alias_step_kb(),
     )
+
+
+@router.message(RegistrationForm.uni_new_aliases, F.text == texts.BTN.ALIAS_DONE)
+async def form_uni_new_aliases_done(message: Message, state: FSMContext) -> None:
+    await state.set_state(RegistrationForm.uni_new_link)
+    await message.answer(texts.REG_UNI_NEW_LINK_PROMPT, reply_markup=form_cancel_kb())
 
 
 @router.message(RegistrationForm.uni_new_aliases, F.text)
@@ -277,35 +321,24 @@ async def form_uni_new_alias(message: Message, state: FSMContext) -> None:
         await message.answer(
             texts.REG_ALIAS_INVALID.format(
                 min=limits.ALIAS_MIN, max=limits.ALIAS_MAX, done=texts.BTN.ALIAS_DONE
-            ),
-            reply_markup=alias_done_kb(),
+            )
         )
         return
     data = await state.get_data()
     aliases: list[str] = data.get("new_uni_aliases", [])
     if alias.lower() in (a.lower() for a in aliases):
-        await message.answer(texts.REG_UNI_NEW_ALIAS_DUP, reply_markup=alias_done_kb())
+        await message.answer(texts.REG_UNI_NEW_ALIAS_DUP)
         return
     aliases.append(alias)
     await state.update_data(new_uni_aliases=aliases)
-    done = len(aliases) >= limits.NEW_UNI_ALIASES_MAX
     await message.answer(
         texts.REG_UNI_NEW_ALIAS_ACCEPTED.format(
             alias=escape(alias), n=len(aliases), limit=limits.NEW_UNI_ALIASES_MAX
-        ),
-        reply_markup=None if done else alias_done_kb(),
+        )
     )
-    if done:
+    if len(aliases) >= limits.NEW_UNI_ALIASES_MAX:
         await state.set_state(RegistrationForm.uni_new_link)
-        await message.answer(texts.REG_UNI_NEW_LINK_PROMPT)
-
-
-@router.callback_query(RegistrationForm.uni_new_aliases, AliasDoneCB.filter())
-async def form_uni_new_aliases_done(callback: CallbackQuery, state: FSMContext) -> None:
-    await callback.message.edit_reply_markup(reply_markup=None)
-    await state.set_state(RegistrationForm.uni_new_link)
-    await callback.message.answer(texts.REG_UNI_NEW_LINK_PROMPT)
-    await callback.answer()
+        await message.answer(texts.REG_UNI_NEW_LINK_PROMPT, reply_markup=form_cancel_kb())
 
 
 @router.message(RegistrationForm.uni_new_link, F.text)
@@ -366,37 +399,26 @@ async def form_birth_date(message: Message, state: FSMContext) -> None:
     )
 
 
-# --- Подтверждение ---
+# --- Подтверждение (кнопки меню; «Отмена» ловится общим обработчиком выше) ---
 
 
-@router.callback_query(RegistrationForm.confirm, RegFormCB.filter())
-async def form_confirm(
-    callback: CallbackQuery,
-    callback_data: RegFormCB,
-    session: AsyncSession,
-    state: FSMContext,
-) -> None:
-    if callback_data.action == "cancel":
-        await state.clear()
-        await callback.message.edit_text(texts.REG_CANCELLED)
-        await callback.answer()
-        return
-    if callback_data.action == "restart":
-        await state.clear()
-        await state.set_state(RegistrationForm.nick)
-        await callback.message.edit_text(texts.REG_RESTARTED)
-        await callback.answer()
-        return
+@router.message(RegistrationForm.confirm, F.text == texts.BTN.REG_RESTART)
+async def form_restart(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await state.set_state(RegistrationForm.nick)
+    await message.answer(texts.REG_RESTARTED, reply_markup=form_cancel_kb())
 
-    error = await registration_service.check_can_apply(session, callback.from_user.id)
+
+@router.message(RegistrationForm.confirm, F.text == texts.BTN.REG_SUBMIT)
+async def form_submit(message: Message, session: AsyncSession, state: FSMContext) -> None:
+    error = await registration_service.check_can_apply(session, message.from_user.id)
     if error:
         await state.clear()
-        await callback.message.edit_text(error)
-        await callback.answer()
+        await message.answer(error, reply_markup=main_menu_kb(registered=False))
         return
     data = await state.get_data()
     request = await registration_service.submit_request(
-        session, callback.bot, callback.from_user, data
+        session, message.bot, message.from_user, data
     )
     await state.clear()
     submitted = (
@@ -404,5 +426,9 @@ async def form_confirm(
         if request.university_request_id is not None
         else texts.REG_SUBMITTED
     )
-    await callback.message.edit_text(submitted)
-    await callback.answer()
+    await message.answer(submitted, reply_markup=main_menu_kb(registered=False))
+
+
+@router.message(RegistrationForm.confirm, F.text)
+async def form_confirm_other(message: Message) -> None:
+    await message.answer(texts.REG_USE_BUTTONS)

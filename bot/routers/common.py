@@ -1,6 +1,5 @@
 from aiogram import F, Router
 from aiogram.enums import ChatType
-from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot import texts
 from bot.db.models import User
 from bot.keyboards.callback_data import StartCB
-from bot.keyboards.common_kb import start_kb
+from bot.keyboards.common_kb import main_menu_kb
 from bot.services import content_service, notification_service
 
 router = Router(name="common")
@@ -18,22 +17,29 @@ router = Router(name="common")
 async def cmd_start(message: Message, session: AsyncSession, db_user: User | None) -> None:
     if db_user is None:
         content = await content_service.get_content(session, "welcome")
-        await content_service.send_content(message, content, keyboard=start_kb())
+        await content_service.send_content(
+            message, content, keyboard=main_menu_kb(registered=False)
+        )
         return
     role = texts.ROLE_LABELS.get(db_user.current_role, db_user.current_role.value)
-    await message.answer(texts.START_REGISTERED.format(name=db_user.display_name, role=role))
+    await message.answer(
+        texts.START_REGISTERED.format(name=db_user.display_name, role=role),
+        reply_markup=main_menu_kb(registered=True),
+    )
+
+
+@router.message(F.chat.type == ChatType.PRIVATE, F.text == texts.BTN.START_ABOUT)
+async def msg_about(message: Message, session: AsyncSession) -> None:
+    """Кнопка «Кто мы?» в меню (меню остаётся на месте)."""
+    content = await content_service.get_content(session, "about")
+    await content_service.send_content(message, content)
 
 
 @router.callback_query(StartCB.filter(F.action == "about"))
 async def cb_about(callback: CallbackQuery, session: AsyncSession) -> None:
+    """Кнопка «Кто мы?» под старыми приветственными сообщениями."""
     content = await content_service.get_content(session, "about")
-    if content.file_id is None:
-        try:
-            await callback.message.edit_text(content.text, reply_markup=start_kb())
-        except TelegramAPIError:
-            await content_service.send_content(callback.message, content, keyboard=start_kb())
-    else:
-        await content_service.send_content(callback.message, content, keyboard=start_kb())
+    await content_service.send_content(callback.message, content)
     await callback.answer()
 
 

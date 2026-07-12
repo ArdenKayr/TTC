@@ -1,29 +1,52 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
 
 from bot import texts
 from bot.db.models import University
-from bot.keyboards.callback_data import (
-    AliasDoneCB,
-    RegFormCB,
-    SearchFeedbackCB,
-    UniversityNewCB,
-    UniversityNoneCB,
-    UniversityPickCB,
-)
+from bot.keyboards.callback_data import UniversityPickCB
+
+_CANCEL_ROW = [KeyboardButton(text=texts.BTN.REG_CANCEL)]
 
 
-def _no_university_row() -> list[InlineKeyboardButton]:
-    return [
-        InlineKeyboardButton(text=texts.BTN.UNI_NONE, callback_data=UniversityNoneCB().pack())
-    ]
+def _reply(rows: list[list[KeyboardButton]]) -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True, is_persistent=True)
 
 
-def university_prompt_kb() -> InlineKeyboardMarkup:
-    """Показывается вместе с просьбой ввести название вуза."""
-    return InlineKeyboardMarkup(inline_keyboard=[_no_university_row()])
+def form_cancel_kb() -> ReplyKeyboardMarkup:
+    """Меню обычного шага анкеты: только «Отмена»."""
+    return _reply([_CANCEL_ROW])
+
+
+def uni_menu_kb() -> ReplyKeyboardMarkup:
+    """Меню шага вуза: сразу доступны оба «запасных выхода» и отмена."""
+    return _reply(
+        [
+            [KeyboardButton(text=texts.BTN.UNI_NOT_LISTED)],
+            [KeyboardButton(text=texts.BTN.UNI_NONE)],
+            _CANCEL_ROW,
+        ]
+    )
+
+
+def uni_search_inline_kb() -> InlineKeyboardMarkup:
+    """Кнопка живого списка вузов (открывает inline-поиск в этом же чате)."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=texts.BTN.UNI_SEARCH, switch_inline_query_current_chat=""
+                )
+            ]
+        ]
+    )
 
 
 def university_results_kb(universities: list[University]) -> InlineKeyboardMarkup:
+    """Результаты обычного (введённого сообщением) поиска — кнопки под сообщением."""
     rows = []
     for uni in universities:
         label = uni.canonical_name
@@ -39,61 +62,30 @@ def university_results_kb(universities: list[University]) -> InlineKeyboardMarku
                 )
             ]
         )
-    rows.append(
-        [
-            InlineKeyboardButton(
-                text=texts.BTN.UNI_NOT_LISTED, callback_data=UniversityNewCB().pack()
-            )
-        ]
-    )
-    rows.append(_no_university_row())
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def search_feedback_kb() -> InlineKeyboardMarkup:
-    """«Удобно ли было искать вуз?» — Да / Нет, добавить вариант поиска."""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=texts.BTN.UNI_FB_YES,
-                    callback_data=SearchFeedbackCB(action="yes").pack(),
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text=texts.BTN.UNI_FB_NO,
-                    callback_data=SearchFeedbackCB(action="no").pack(),
-                )
-            ],
+def search_feedback_kb() -> ReplyKeyboardMarkup:
+    """«Удобно ли было искать вуз?»"""
+    return _reply(
+        [
+            [KeyboardButton(text=texts.BTN.UNI_FB_YES)],
+            [KeyboardButton(text=texts.BTN.UNI_FB_NO)],
+            _CANCEL_ROW,
         ]
     )
 
 
-def alias_done_kb() -> InlineKeyboardMarkup:
-    """Кнопка «Готово» при сборе вариантов названий (по одному сообщению)."""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=texts.BTN.ALIAS_DONE, callback_data=AliasDoneCB().pack())]
-        ]
-    )
+def alias_step_kb() -> ReplyKeyboardMarkup:
+    """Сбор вариантов названий: «Готово» + отмена."""
+    return _reply([[KeyboardButton(text=texts.BTN.ALIAS_DONE)], _CANCEL_ROW])
 
 
-def confirm_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=texts.BTN.REG_SUBMIT, callback_data=RegFormCB(action="submit").pack()
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text=texts.BTN.REG_RESTART, callback_data=RegFormCB(action="restart").pack()
-                ),
-                InlineKeyboardButton(
-                    text=texts.BTN.REG_CANCEL, callback_data=RegFormCB(action="cancel").pack()
-                ),
-            ],
+def confirm_kb() -> ReplyKeyboardMarkup:
+    """Подтверждение анкеты."""
+    return _reply(
+        [
+            [KeyboardButton(text=texts.BTN.REG_SUBMIT)],
+            [KeyboardButton(text=texts.BTN.REG_RESTART), KeyboardButton(text=texts.BTN.REG_CANCEL)],
         ]
     )

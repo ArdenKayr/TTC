@@ -63,6 +63,14 @@ async def search(session: AsyncSession, query: str, limit: int = 5) -> list[Univ
     return [row[0] for row in result.all()]
 
 
+async def list_all(session: AsyncSession, limit: int = 50, offset: int = 0) -> list[University]:
+    """Все вузы по алфавиту, страницами — для живого inline-списка."""
+    result = await session.execute(
+        select(University).order_by(University.canonical_name).limit(limit).offset(offset)
+    )
+    return list(result.scalars().all())
+
+
 async def find_by_exact_name(session: AsyncSession, name: str) -> University | None:
     result = await session.execute(
         select(University).where(func.lower(University.canonical_name) == name.lower())

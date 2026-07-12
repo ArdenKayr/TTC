@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from aiogram.types import InlineKeyboardMarkup, Message
+from aiogram.types import InlineKeyboardMarkup, Message, ReplyKeyboardMarkup
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import texts
@@ -42,7 +42,9 @@ async def get_content(session: AsyncSession, slot_key: str) -> Content:
 
 
 async def send_content(
-    message: Message, content: Content, keyboard: InlineKeyboardMarkup | None = None
+    message: Message,
+    content: Content,
+    keyboard: InlineKeyboardMarkup | ReplyKeyboardMarkup | None = None,
 ) -> None:
     """Отправляет контент в тот же чат: файл с подписью или просто текст."""
     if content.file_id is None:
