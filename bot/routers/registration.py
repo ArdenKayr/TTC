@@ -13,7 +13,13 @@ from aiogram.exceptions import TelegramAPIError
 from bot import limits, texts
 from bot.db.models import University, User
 from bot.db.repositories import alias_suggestion_repo, university_repo
-from bot.keyboards.callback_data import StartCB, UniPageCB, UniShowAllCB, UniversityPickCB
+from bot.keyboards.callback_data import (
+    NoopCB,
+    StartCB,
+    UniPageCB,
+    UniShowAllCB,
+    UniversityPickCB,
+)
 from bot.keyboards.common_kb import main_menu_kb
 from bot.keyboards.registration_kb import (
     alias_step_kb,
@@ -235,6 +241,12 @@ async def form_university_page(
         await callback.message.edit_text(text, reply_markup=kb)
     except TelegramAPIError:
         pass  # страница не изменилась — просто гасим «часики» на кнопке
+    await callback.answer()
+
+
+@router.callback_query(NoopCB.filter())
+async def cb_noop(callback: CallbackQuery) -> None:
+    """Декоративные кнопки (счётчик страниц): просто гасим «часики»."""
     await callback.answer()
 
 

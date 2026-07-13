@@ -7,7 +7,7 @@ from aiogram.types import (
 
 from bot import texts
 from bot.db.models import University
-from bot.keyboards.callback_data import UniPageCB, UniShowAllCB, UniversityPickCB
+from bot.keyboards.callback_data import NoopCB, UniPageCB, UniShowAllCB, UniversityPickCB
 
 _CANCEL_ROW = [KeyboardButton(text=texts.BTN.REG_CANCEL)]
 
@@ -55,20 +55,24 @@ def university_browser_kb(
                 )
             ]
         )
-    nav = []
-    if page > 0:
-        nav.append(
-            InlineKeyboardButton(
-                text=texts.BTN.UNI_PAGE_PREV, callback_data=UniPageCB(page=page - 1).pack()
+    if pages > 1:
+        nav = []
+        if page > 0:
+            nav.append(
+                InlineKeyboardButton(
+                    text=texts.BTN.UNI_PAGE_PREV, callback_data=UniPageCB(page=page - 1).pack()
+                )
             )
-        )
-    if page < pages - 1:
+        # Неактивный счётчик страниц между стрелками.
         nav.append(
-            InlineKeyboardButton(
-                text=texts.BTN.UNI_PAGE_NEXT, callback_data=UniPageCB(page=page + 1).pack()
-            )
+            InlineKeyboardButton(text=f"{page + 1}/{pages}", callback_data=NoopCB().pack())
         )
-    if nav:
+        if page < pages - 1:
+            nav.append(
+                InlineKeyboardButton(
+                    text=texts.BTN.UNI_PAGE_NEXT, callback_data=UniPageCB(page=page + 1).pack()
+                )
+            )
         rows.append(nav)
     if filtered:
         rows.append(

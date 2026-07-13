@@ -18,6 +18,10 @@ class UniShowAllCB(CallbackData, prefix="unishowall"):
     pass
 
 
+class NoopCB(CallbackData, prefix="noop"):
+    """Декоративная кнопка (например, счётчик страниц) — нажатие ничего не делает."""
+
+
 class UniReqCB(CallbackData, prefix="unireq"):
     action: str  # approve | reject | edit
     request_id: str
