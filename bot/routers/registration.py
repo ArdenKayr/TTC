@@ -53,7 +53,11 @@ async def _begin_form(message: Message, state: FSMContext) -> None:
 
 
 async def _render_browser(session: AsyncSession, query: str | None, page: int):
-    """Текст и кнопки страницы листаемого списка вузов."""
+    """Текст и кнопки страницы листаемого списка вузов.
+
+    Полные названия — нумерованным списком в тексте (в кнопку длинное название
+    не помещается), на кнопках — только номера.
+    """
     items, total = await university_repo.browse(
         session, query, limit=limits.UNI_PAGE_SIZE, offset=page * limits.UNI_PAGE_SIZE
     )
@@ -64,12 +68,21 @@ async def _render_browser(session: AsyncSession, query: str | None, page: int):
             if query
             else texts.REG_UNI_BROWSER_NO_DATA
         )
-    elif query:
-        text = texts.REG_UNI_BROWSER_FILTERED.format(
-            query=escape(query), page=page + 1, pages=pages
-        )
     else:
-        text = texts.REG_UNI_BROWSER_ALL.format(page=page + 1, pages=pages)
+        header = (
+            texts.REG_UNI_BROWSER_FILTERED.format(
+                query=escape(query), page=page + 1, pages=pages
+            )
+            if query
+            else texts.REG_UNI_BROWSER_ALL.format(page=page + 1, pages=pages)
+        )
+        lines = [
+            texts.REG_UNI_LIST_ITEM.format(
+                n=page * limits.UNI_PAGE_SIZE + i + 1, name=escape(uni.canonical_name)
+            )
+            for i, uni in enumerate(items)
+        ]
+        text = header + "\n\n" + "\n".join(lines)
     return text, university_browser_kb(items, page, pages, filtered=bool(query))
 
 
