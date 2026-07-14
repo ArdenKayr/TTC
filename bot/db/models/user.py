@@ -26,7 +26,12 @@ class User(Base):
         user_role_enum, default=UserRole.USER, server_default=UserRole.USER.value
     )
     role_before_ban: Mapped[UserRole | None] = mapped_column(user_role_enum)
+    # Личные модули прав (сверх группы): {"modules": ["content", ...]}.
     custom_permissions: Mapped[dict | None] = mapped_column(JSONB)
+    # Группа прав (может не быть); полный админ (current_role=admin) может всё и без неё.
+    permission_group_id: Mapped[int | None] = mapped_column(
+        sa.ForeignKey("permission_groups.group_id", name="fk_users_permission_group")
+    )
     banned_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     banned_reason: Mapped[str | None] = mapped_column(sa.Text)
     registration_date: Mapped[datetime] = mapped_column(

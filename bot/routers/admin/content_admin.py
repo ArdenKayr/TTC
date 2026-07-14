@@ -7,15 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import texts
 from bot.db.models import User
-from bot.filters.role_filter import IsAdmin
+from bot.enums import PermissionModule
+from bot.filters.role_filter import HasPerm
 from bot.keyboards.admin_kb import content_edit_kb, content_slots_kb
 from bot.keyboards.callback_data import ContentActionCB, ContentSlotCB
 from bot.services import content_service
 from bot.states.content_states import ContentEditForm
 
 router = Router(name="admin_content")
-router.message.filter(IsAdmin())
-router.callback_query.filter(IsAdmin())
+router.message.filter(HasPerm(PermissionModule.CONTENT))
+router.callback_query.filter(HasPerm(PermissionModule.CONTENT))
 
 
 @router.message(Command("content"), F.chat.type == ChatType.PRIVATE)

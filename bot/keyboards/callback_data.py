@@ -22,6 +22,50 @@ class NoopCB(CallbackData, prefix="noop"):
     """Декоративная кнопка (например, счётчик страниц) — нажатие ничего не делает."""
 
 
+class PermHomeCB(CallbackData, prefix="phome"):
+    pass
+
+
+class PermNewGroupCB(CallbackData, prefix="pgnew"):
+    pass
+
+
+class PermPersonCB(CallbackData, prefix="ppers"):
+    pass
+
+
+class PermCancelCB(CallbackData, prefix="pcancel"):
+    pass
+
+
+class GroupOpenCB(CallbackData, prefix="pgopen"):
+    group_id: int
+
+
+class GroupToggleCB(CallbackData, prefix="pgtgl"):
+    group_id: int
+    module: str
+
+
+class GroupMembersCB(CallbackData, prefix="pgmem"):
+    group_id: int
+
+
+class GroupDeleteCB(CallbackData, prefix="pgdel"):
+    group_id: int
+    confirmed: bool = False
+
+
+class UserGroupSetCB(CallbackData, prefix="pusetg"):
+    tg_id: int
+    group_id: int  # 0 = без группы
+
+
+class UserModToggleCB(CallbackData, prefix="pumod"):
+    tg_id: int
+    module: str
+
+
 class UniReqCB(CallbackData, prefix="unireq"):
     action: str  # approve | reject | edit
     request_id: str

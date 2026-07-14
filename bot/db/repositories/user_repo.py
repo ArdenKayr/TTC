@@ -10,6 +10,13 @@ async def get_by_tg_id(session: AsyncSession, tg_id: int) -> User | None:
     return await session.get(User, tg_id)
 
 
+async def list_by_permission_group(session: AsyncSession, group_id: int) -> list[User]:
+    result = await session.execute(
+        select(User).where(User.permission_group_id == group_id).order_by(User.display_name)
+    )
+    return list(result.scalars().all())
+
+
 async def get_by_username(session: AsyncSession, username: str) -> User | None:
     result = await session.execute(
         select(User).where(User.username.ilike(username.lstrip("@")))

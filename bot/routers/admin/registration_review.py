@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import texts
 from bot.db.models import User
-from bot.filters.role_filter import IsAdmin
+from bot.enums import PermissionModule
+from bot.filters.role_filter import HasPerm
 from bot.keyboards.callback_data import RegReviewCB
 from bot.services import registration_service
 
@@ -23,7 +24,7 @@ async def _apply_review_result(callback: CallbackQuery, ok: bool, note: str) -> 
     await callback.answer(texts.REVIEW_DONE)
 
 
-@router.callback_query(RegReviewCB.filter(F.action == "approve"), IsAdmin())
+@router.callback_query(RegReviewCB.filter(F.action == "approve"), HasPerm(PermissionModule.REGISTRATION))
 async def cb_approve(
     callback: CallbackQuery,
     callback_data: RegReviewCB,
@@ -36,7 +37,7 @@ async def cb_approve(
     await _apply_review_result(callback, ok, note)
 
 
-@router.callback_query(RegReviewCB.filter(F.action == "reject"), IsAdmin())
+@router.callback_query(RegReviewCB.filter(F.action == "reject"), HasPerm(PermissionModule.REGISTRATION))
 async def cb_reject(
     callback: CallbackQuery,
     callback_data: RegReviewCB,

@@ -30,6 +30,14 @@ class BTN:
     EDIT_CANCEL = "🚫 Отменить исправление"
     CONTENT_REMOVE_FILE = "🗑 Убрать файл"
     CONTENT_CANCEL = "Отмена"
+    PERM_NEW_GROUP = "➕ Создать группу"
+    PERM_PERSON = "👤 Права человека"
+    PERM_MEMBERS = "👥 Участники"
+    PERM_DELETE = "🗑 Удалить группу"
+    PERM_DELETE_YES = "🗑 Да, удалить"
+    PERM_BACK = "⬅️ Назад"
+    PERM_NO_GROUP = "🚫 Без группы"
+    PERM_CANCEL = "🚫 Отмена"
 
 
 ROLE_LABELS = {
@@ -234,6 +242,40 @@ REVIEW_NOT_FOUND = "Заявка не найдена."
 REVIEW_ALREADY_PROCESSED = "Заявка уже обработана другим админом."
 REVIEW_DONE = "Готово"
 REVIEW_ADMIN_ONLY = "⛔ Действие доступно только админам."
+
+# --- Панель прав админов (/admins, только для полных админов) ---
+PERM_HOME = (
+    "⚙️ <b>Права админов</b>\n"
+    "Включайте модули группе, затем добавляйте людей в группу — или выдавайте "
+    "модули лично. Полные админы (роль «админ») могут всё без групп."
+)
+PERM_HOME_EMPTY = "\n\nГрупп пока нет — создайте первую."
+PERM_GROUP_CARD = (
+    "📁 <b>{name}</b>\n"
+    "Нажмите на модуль, чтобы включить (✅) или выключить (⬜) его для всей группы."
+)
+PERM_GROUP_ROW = "📁 {name} · модулей: {count}"
+PERM_GROUP_CREATE_PROMPT = "Введите название новой группы (3–100 символов):"
+PERM_GROUP_NAME_INVALID = "Название — одной строкой, от 3 до 100 символов. Попробуйте ещё раз:"
+PERM_GROUP_NAME_TAKEN = "Группа с таким названием уже есть — введите другое:"
+PERM_GROUP_DELETE_CONFIRM = (
+    "Удалить группу «{name}»? Её участники потеряют права группы (личные модули останутся)."
+)
+PERM_GROUP_DELETED_MSG = "Группа «{name}» удалена."
+PERM_MEMBERS_HEADER = "👥 Участники группы «{name}»:"
+PERM_MEMBERS_EMPTY = "👥 В группе «{name}» пока никого. Добавить: «{person_btn}» в панели /admins."
+PERM_PERSON_PROMPT = (
+    "Пришлите tg_id или @username человека — он должен быть зарегистрирован в боте:"
+)
+PERM_PERSON_CARD = (
+    "👤 <b>{name}</b> · {username} · id <code>{tg_id}</code>\n"
+    "Роль: {role}\n"
+    "Группа прав: {group}\n\n"
+    "Кнопками ниже: личные модули (действуют поверх группы) и выбор группы."
+)
+PERM_PERSON_IS_ADMIN_NOTE = "\n⚠️ Это полный админ — у него и так есть все права."
+PERM_CANCELLED = "Отменено."
+PERM_NO_GROUP_LABEL = "—"
 
 # --- Команды модерации ---
 BAN_USAGE = "Использование: /ban <tg_id | @username> [причина]"

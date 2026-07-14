@@ -52,6 +52,15 @@ class PaymentStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class PermissionModule(str, Enum):
+    """Независимые модули админских прав (подключаются группе или человеку)."""
+
+    REGISTRATION = "registration"  # заявки на регистрацию
+    UNIVERSITIES = "universities"  # заявки на вузы и варианты поиска
+    CONTENT = "content"  # редактор текстов и файлов (/content)
+    MODERATION = "moderation"  # бан/разбан
+
+
 class ActorType(str, Enum):
     ADMIN = "admin"
     SYSTEM = "system"
@@ -71,3 +80,7 @@ class AuditAction(str, Enum):
     ALIAS_REJECTED = "alias_rejected"
     ALIAS_EDITED = "alias_edited"
     CONTENT_UPDATED = "content_updated"
+    PERM_GROUP_CREATED = "perm_group_created"
+    PERM_GROUP_UPDATED = "perm_group_updated"
+    PERM_GROUP_DELETED = "perm_group_deleted"
+    USER_PERMISSIONS_CHANGED = "user_permissions_changed"

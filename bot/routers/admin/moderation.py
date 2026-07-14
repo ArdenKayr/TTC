@@ -6,12 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot import texts
 from bot.db.models import User
 from bot.db.repositories import user_repo
-from bot.enums import UserRole
-from bot.filters.role_filter import IsAdmin
+from bot.enums import PermissionModule, UserRole
+from bot.filters.role_filter import HasPerm, IsAdmin
 from bot.services import role_service
 
 router = Router(name="admin_moderation")
-router.message.filter(IsAdmin())
 
 
 async def _resolve_target(session: AsyncSession, ref: str) -> User | None:
@@ -20,7 +19,7 @@ async def _resolve_target(session: AsyncSession, ref: str) -> User | None:
     return await user_repo.get_by_username(session, ref)
 
 
-@router.message(Command("ban"))
+@router.message(Command("ban"), HasPerm(PermissionModule.MODERATION))
 async def cmd_ban(
     message: Message, command: CommandObject, session: AsyncSession, db_user: User
 ) -> None:
@@ -43,7 +42,7 @@ async def cmd_ban(
     await message.answer(texts.BAN_DONE.format(name=target.display_name, tg_id=target.tg_id))
 
 
-@router.message(Command("unban"))
+@router.message(Command("unban"), HasPerm(PermissionModule.MODERATION))
 async def cmd_unban(
     message: Message, command: CommandObject, session: AsyncSession, db_user: User
 ) -> None:
@@ -64,7 +63,8 @@ async def cmd_unban(
     )
 
 
-@router.message(Command("setrole"))
+# Роли (включая назначение полных админов) — только полный админ.
+@router.message(Command("setrole"), IsAdmin())
 async def cmd_setrole(
     message: Message, command: CommandObject, session: AsyncSession, db_user: User
 ) -> None:

@@ -15,8 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot import limits, texts
 from bot.db.models import User
 from bot.db.repositories import alias_suggestion_repo, university_repo, university_request_repo
-from bot.enums import RequestStatus
-from bot.filters.role_filter import IsAdmin
+from bot.enums import PermissionModule, RequestStatus
+from bot.filters.role_filter import HasPerm
 from bot.keyboards.admin_kb import (
     alias_suggestion_review_kb,
     review_edit_cancel_kb,
@@ -55,7 +55,7 @@ def _parse_request_edit(text: str) -> tuple[str, list[str]] | None:
 # --- Заявки на добавление вуза ---
 
 
-@router.callback_query(UniReqCB.filter(F.action == "approve"), IsAdmin())
+@router.callback_query(UniReqCB.filter(F.action == "approve"), HasPerm(PermissionModule.UNIVERSITIES))
 async def cb_uni_approve(
     callback: CallbackQuery, callback_data: UniReqCB, session: AsyncSession, db_user: User
 ) -> None:
@@ -65,7 +65,7 @@ async def cb_uni_approve(
     await _apply_review_result(callback, ok, note)
 
 
-@router.callback_query(UniReqCB.filter(F.action == "reject"), IsAdmin())
+@router.callback_query(UniReqCB.filter(F.action == "reject"), HasPerm(PermissionModule.UNIVERSITIES))
 async def cb_uni_reject(
     callback: CallbackQuery, callback_data: UniReqCB, session: AsyncSession, db_user: User
 ) -> None:
@@ -75,7 +75,7 @@ async def cb_uni_reject(
     await _apply_review_result(callback, ok, note)
 
 
-@router.callback_query(UniReqCB.filter(F.action == "edit"), IsAdmin())
+@router.callback_query(UniReqCB.filter(F.action == "edit"), HasPerm(PermissionModule.UNIVERSITIES))
 async def cb_uni_edit(
     callback: CallbackQuery, callback_data: UniReqCB, session: AsyncSession, state: FSMContext
 ) -> None:
@@ -99,7 +99,7 @@ async def cb_uni_edit(
     await callback.answer()
 
 
-@router.message(ReviewEditForm.university_request, F.text, IsAdmin())
+@router.message(ReviewEditForm.university_request, F.text, HasPerm(PermissionModule.UNIVERSITIES))
 async def msg_uni_edit(
     message: Message, session: AsyncSession, state: FSMContext, db_user: User
 ) -> None:
@@ -137,7 +137,7 @@ async def msg_uni_edit(
 # --- Предложения вариантов поиска ---
 
 
-@router.callback_query(AliasSugCB.filter(F.action == "approve"), IsAdmin())
+@router.callback_query(AliasSugCB.filter(F.action == "approve"), HasPerm(PermissionModule.UNIVERSITIES))
 async def cb_alias_approve(
     callback: CallbackQuery, callback_data: AliasSugCB, session: AsyncSession, db_user: User
 ) -> None:
@@ -147,7 +147,7 @@ async def cb_alias_approve(
     await _apply_review_result(callback, ok, note)
 
 
-@router.callback_query(AliasSugCB.filter(F.action == "reject"), IsAdmin())
+@router.callback_query(AliasSugCB.filter(F.action == "reject"), HasPerm(PermissionModule.UNIVERSITIES))
 async def cb_alias_reject(
     callback: CallbackQuery, callback_data: AliasSugCB, session: AsyncSession, db_user: User
 ) -> None:
@@ -157,7 +157,7 @@ async def cb_alias_reject(
     await _apply_review_result(callback, ok, note)
 
 
-@router.callback_query(AliasSugCB.filter(F.action == "edit"), IsAdmin())
+@router.callback_query(AliasSugCB.filter(F.action == "edit"), HasPerm(PermissionModule.UNIVERSITIES))
 async def cb_alias_edit(
     callback: CallbackQuery, callback_data: AliasSugCB, session: AsyncSession, state: FSMContext
 ) -> None:
@@ -182,7 +182,7 @@ async def cb_alias_edit(
     await callback.answer()
 
 
-@router.message(ReviewEditForm.alias_suggestion, F.text, IsAdmin())
+@router.message(ReviewEditForm.alias_suggestion, F.text, HasPerm(PermissionModule.UNIVERSITIES))
 async def msg_alias_edit(
     message: Message, session: AsyncSession, state: FSMContext, db_user: User
 ) -> None:
@@ -218,7 +218,7 @@ async def msg_alias_edit(
 # --- Отмена исправления ---
 
 
-@router.callback_query(ReviewEditCB.filter(F.action == "cancel"), IsAdmin())
+@router.callback_query(ReviewEditCB.filter(F.action == "cancel"), HasPerm(PermissionModule.UNIVERSITIES))
 async def cb_edit_cancel(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
     await callback.message.edit_text(texts.EDIT_CANCELLED)
