@@ -15,43 +15,6 @@ class RequestStatus(str, Enum):
     REJECTED = "rejected"
 
 
-class ActivityStatus(str, Enum):
-    PREPARING = "preparing"
-    ACTIVE = "active"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
-
-
-class VotePollStatus(str, Enum):
-    NOT_REQUESTED = "not_requested"
-    PENDING_ADMIN_APPROVAL = "pending_admin_approval"
-    POSTED = "posted"
-    CLOSED = "closed"
-
-
-class AfishaStatus(str, Enum):
-    NONE = "none"
-    REQUESTED = "requested"
-    PUBLISHED = "published"
-
-
-class BillingType(str, Enum):
-    ONE_TIME = "one_time"
-    MONTHLY = "monthly"
-
-
-class TargetType(str, Enum):
-    ALL = "all"
-    SPECIFIC = "specific"
-
-
-class PaymentStatus(str, Enum):
-    PENDING = "pending"
-    PAID = "paid"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-
 class PermissionModule(str, Enum):
     """Независимые модули админских прав (подключаются группе или человеку)."""
 
