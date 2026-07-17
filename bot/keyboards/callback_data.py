@@ -84,6 +84,21 @@ class ReviewEditCB(CallbackData, prefix="revedit"):
     action: str  # cancel
 
 
+class ActReviewCB(CallbackData, prefix="actrev"):
+    action: str  # approve | reject
+    request_id: str
+
+
+class VoteReviewCB(CallbackData, prefix="voterev"):
+    action: str  # approve | reject
+    request_id: str
+
+
+class ActLifecycleCB(CallbackData, prefix="actlife"):
+    action: str  # complete | cancel
+    activity_id: str
+
+
 class StartCB(CallbackData, prefix="start"):
     action: str  # register | about
 

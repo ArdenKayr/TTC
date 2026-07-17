@@ -1,3 +1,4 @@
+from bot.db.models.activity import Activity, ActivityRequest, VoteRequest
 from bot.db.models.audit import AuditLog
 from bot.db.models.content import ContentBlock
 from bot.db.models.permission import PermissionGroup
@@ -11,6 +12,8 @@ from bot.db.models.university import (
 from bot.db.models.user import User
 
 __all__ = [
+    "Activity",
+    "ActivityRequest",
     "AliasSuggestion",
     "AuditLog",
     "ContentBlock",
@@ -20,4 +23,5 @@ __all__ = [
     "UniversityAlias",
     "UniversityRequest",
     "User",
+    "VoteRequest",
 ]

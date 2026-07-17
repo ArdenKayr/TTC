@@ -14,6 +14,9 @@ def main_menu_kb(registered: bool) -> ReplyKeyboardMarkup:
     rows = []
     if not registered:
         rows.append([KeyboardButton(text=texts.BTN.START_REGISTER)])
+    else:
+        rows.append([KeyboardButton(text=texts.BTN.ACT_NEW)])
+        rows.append([KeyboardButton(text=texts.BTN.VOTE_NEW)])
     rows.append([KeyboardButton(text=texts.BTN.START_ABOUT)])
     return ReplyKeyboardMarkup(
         keyboard=rows,

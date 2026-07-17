@@ -15,6 +15,12 @@ class RequestStatus(str, Enum):
     REJECTED = "rejected"
 
 
+class ActivityStatus(str, Enum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
 class PermissionModule(str, Enum):
     """Независимые модули админских прав (подключаются группе или человеку)."""
 
@@ -22,6 +28,7 @@ class PermissionModule(str, Enum):
     UNIVERSITIES = "universities"  # заявки на вузы и варианты поиска
     CONTENT = "content"  # редактор текстов и файлов (/content)
     MODERATION = "moderation"  # бан/разбан
+    ACTIVITIES = "activities"  # мероприятия и голосования
 
 
 class ActorType(str, Enum):
@@ -47,3 +54,11 @@ class AuditAction(str, Enum):
     PERM_GROUP_UPDATED = "perm_group_updated"
     PERM_GROUP_DELETED = "perm_group_deleted"
     USER_PERMISSIONS_CHANGED = "user_permissions_changed"
+    ACTIVITY_APPROVED = "activity_approved"
+    ACTIVITY_REJECTED = "activity_rejected"
+    ACTIVITY_COMPLETED = "activity_completed"
+    ACTIVITY_CANCELLED = "activity_cancelled"
+    VOTE_APPROVED = "vote_approved"
+    VOTE_REJECTED = "vote_rejected"
+    ORGANIZER_PROMOTED = "organizer_promoted"
+    ORGANIZER_DEMOTED = "organizer_demoted"

@@ -36,6 +36,9 @@ MODULES: dict[str, Module] = {
     PermissionModule.MODERATION.value: Module(
         PermissionModule.MODERATION.value, "Бан и разбан (/ban, /unban)"
     ),
+    PermissionModule.ACTIVITIES.value: Module(
+        PermissionModule.ACTIVITIES.value, "Мероприятия и голосования"
+    ),
 }
 
 

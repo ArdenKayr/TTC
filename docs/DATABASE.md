@@ -1,9 +1,10 @@
 # База данных TTC — простая справка
 
-В базе **9 таблиц**. Лишнее (мероприятия, деньги, подписки, транзакции) удалено миграцией 0005 —
-в бете этого нет. Когда дойдём до этих фишек, добавим таблицы обратно новыми миграциями.
+В базе **12 таблиц**. Деньги (сборы, подписки, транзакции) в бете не нужны — их таблицы удалены
+миграцией 0005 и вернутся новыми миграциями, когда дойдём. Мероприятия и голосования вернулись
+в бету миграцией 0006 — в упрощённом виде (без денег и со-организаторов).
 
-Актуально на: 2026-07-16.
+Актуально на: 2026-07-18.
 
 ---
 
@@ -23,7 +24,7 @@ users.university_id  →  universities.university_id
 
 ---
 
-## Все 9 таблиц одной строкой
+## Все 12 таблиц одной строкой
 
 | Таблица | Что хранит |
 |---|---|
@@ -33,6 +34,9 @@ users.university_id  →  universities.university_id
 | `university_aliases` | Сокращения вузов для поиска («СПбГУ», «Политех») |
 | `university_requests` | Заявки «моего вуза нет в списке — добавьте» |
 | `alias_suggestions` | Предложения «добавьте вузу такое-то сокращение» |
+| `activity_requests` | Заявки «хочу провести мероприятие» |
+| `activities` | Одобренные мероприятия (карточки в Афише) |
+| `vote_requests` | Заявки «вынесите вопрос на голосование» |
 | `permission_groups` | Группы админских прав («Модераторы» и т.п.) |
 | `audit_log` | Журнал: кто из админов что сделал и когда |
 | `content_blocks` | Тексты и картинки бота, редактируемые через /content |
@@ -53,6 +57,10 @@ erDiagram
     users |o--o{ registration_requests : "processed_by"
     users |o--o{ university_requests : "processed_by"
     users |o--o{ alias_suggestions : "processed_by"
+    users ||--o{ activity_requests : "tg_id"
+    users ||--o{ activities : "organizer_id"
+    users ||--o{ vote_requests : "tg_id"
+    activity_requests |o--o{ activities : "request_id"
     users |o--o{ audit_log : "actor_tg_id"
     users |o--o{ content_blocks : "updated_by"
 ```
@@ -75,12 +83,20 @@ erDiagram
 | `registration_requests.processed_by` | → `users.tg_id` | Какой админ принял/отклонил анкету |
 | `university_requests.processed_by` | → `users.tg_id` | Какой админ решил заявку на вуз |
 | `alias_suggestions.processed_by` | → `users.tg_id` | Какой админ решил заявку на сокращение |
+| `activity_requests.tg_id` | → `users.tg_id` | Кто предложил мероприятие (здесь связь ЕСТЬ: подать может только участник) |
+| `activity_requests.processed_by` | → `users.tg_id` | Какой админ решил заявку на мероприятие |
+| `activities.organizer_id` | → `users.tg_id` | Кто организатор мероприятия |
+| `activities.request_id` | → `activity_requests.request_id` | Из какой заявки мероприятие появилось |
+| `vote_requests.tg_id` | → `users.tg_id` | Кто предложил голосование |
+| `vote_requests.processed_by` | → `users.tg_id` | Какой админ решил заявку на голосование |
 | `audit_log.actor_tg_id` | → `users.tg_id` | Кто совершил действие (пусто = сам бот) |
 | `content_blocks.updated_by` | → `users.tg_id` | Кто последним менял этот текст/картинку |
 
 **Важная НЕ-связь.** В `registration_requests`, `university_requests` и `alias_suggestions`
 есть колонка `tg_id` — Telegram-номер заявителя. Она **специально не связана** с `users`:
 человек подаёт заявку, когда его в `users` ещё нет (туда он попадёт только после одобрения).
+А вот в `activity_requests` и `vote_requests` такая же колонка `tg_id` **связана** с `users` —
+эти заявки подают только уже принятые участники.
 
 ---
 
@@ -180,6 +196,54 @@ erDiagram
 | `processed_by`, `processed_at` | Кто из админов и когда решил |
 | `created_at` | Когда предложено |
 
+### `activity_requests` — заявки на мероприятия
+
+Участник в ЛС бота нажимает «📅 Предложить мероприятие» и заполняет форму. Карточка уходит админам.
+
+| Колонка | Что лежит |
+|---|---|
+| `request_id` | Номер заявки (UUID) |
+| `tg_id` | → `users.tg_id` — кто предложил |
+| `title` | Название мероприятия |
+| `description` | Описание (что, где, когда) — оно же попадёт в Афишу |
+| `extra_url` | Ссылка (чат мероприятия, пост, регистрация) — может быть пустой |
+| `status` | `pending` / `approved` / `rejected` |
+| `processed_by`, `processed_at` | Какой админ и когда решил |
+| `created_at` | Когда подана |
+
+### `activities` — одобренные мероприятия
+
+Появляется при нажатии «Принять» на заявке. Бот сразу публикует карточку в топик «Афиша»,
+а автор с ролью «пользователь» автоматически становится «организатором». Когда админ через
+/activities помечает мероприятие завершённым или отменённым — карточка в Афише правится,
+и если у организатора не осталось активных мероприятий, роль «организатор» снимается.
+
+| Колонка | Что лежит |
+|---|---|
+| `activity_id` | Номер мероприятия (UUID) |
+| `organizer_id` | → `users.tg_id` — организатор |
+| `title`, `description`, `extra_url` | Скопированы из заявки |
+| `status` | `active` (идёт) / `completed` (прошло) / `cancelled` (отменено) |
+| `afisha_message_id` | Номер сообщения-карточки в Афише — чтобы пометить её при закрытии |
+| `request_id` | → `activity_requests` — из какой заявки создано |
+| `created_at`, `updated_at` | Когда одобрено / когда менялось |
+
+### `vote_requests` — заявки на голосования
+
+Участник нажимает «📊 Предложить голосование», пишет вопрос и варианты ответа.
+После «Принять» бот публикует настоящий Telegram-опрос в топик «Голосования».
+
+| Колонка | Что лежит |
+|---|---|
+| `request_id` | Номер заявки (UUID) |
+| `tg_id` | → `users.tg_id` — кто предложил |
+| `question` | Вопрос голосования |
+| `options` | Список вариантов ответа (от 2 до 10) |
+| `status` | `pending` / `approved` / `rejected` |
+| `processed_by`, `processed_at` | Какой админ и когда решил |
+| `poll_message_id` | Номер сообщения с опросом в топике «Голосования» |
+| `created_at` | Когда подана |
+
 ### `permission_groups` — группы админских прав
 
 Группа = название + набор включённых модулей. Права человека = модули его группы **плюс** его личные модули (`users.custom_permissions`). Полный админ (роль `admin`) может всё и без групп.
@@ -191,7 +255,7 @@ erDiagram
 | `modules` | Список включённых модулей, например `["registration", "content"]` |
 | `created_at`, `updated_at` | Когда создана / когда меняли |
 
-Какие бывают модули: `registration` (решать анкеты), `universities` (решать заявки на вузы и сокращения), `content` (менять тексты бота через /content), `moderation` (/ban и /unban).
+Какие бывают модули: `registration` (решать анкеты), `universities` (решать заявки на вузы и сокращения), `content` (менять тексты бота через /content), `moderation` (/ban и /unban), `activities` (решать заявки на мероприятия и голосования, /activities).
 
 ### `audit_log` — журнал действий
 
@@ -225,12 +289,13 @@ erDiagram
 
 ## Справочные мелочи
 
-**Списки допустимых значений (enum), их всего 3:**
+**Списки допустимых значений (enum), их всего 4:**
 
 | Название | Значения | Где используется |
 |---|---|---|
 | `user_role` | user, organizer, admin, custom, banned | `users.current_role`, `users.role_before_ban` |
-| `request_status` | pending, approved, rejected | статус во всех трёх таблицах заявок |
+| `request_status` | pending, approved, rejected | статус во всех пяти таблицах заявок |
+| `activity_status` | active, completed, cancelled | `activities.status` |
 | `actor_type` | admin, system | `audit_log.actor_type` |
 
 **История миграций** (как база дошла до текущего вида):
@@ -242,6 +307,7 @@ erDiagram
 | `0003` | + `university_requests`, `alias_suggestions`; в анкеты и users добавлено «о себе» |
 | `0004` | + `permission_groups` и привязка людей к группам |
 | `0005` | − удалены 6 неиспользуемых таблиц будущих фаз (мероприятия и деньги) |
+| `0006` | + мероприятия и голосования в упрощённом виде: `activity_requests`, `activities`, `vote_requests` |
 
 **Посмотреть базу своими глазами:**
 
@@ -252,5 +318,5 @@ docker compose exec postgres psql -U ttc -d ttc -c "\dt"
 (⚠️ если писать SQL руками: колонку роли запрашивать как `users.current_role`, с именем таблицы —
 слово `current_role` без него PostgreSQL понимает как свою встроенную функцию и вернёт ерунду).
 
-В списке таблиц будет ещё десятая — `alembic_version`: это служебная запись «до какой миграции
+В списке таблиц будет ещё тринадцатая — `alembic_version`: это служебная запись «до какой миграции
 дошла база», её создаёт сам инструмент миграций, трогать не нужно.

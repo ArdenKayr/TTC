@@ -27,3 +27,17 @@ UNI_LINK_MAX = 512
 
 # Сколько вузов показывать на одной странице листаемого списка в анкете.
 UNI_PAGE_SIZE = 8
+
+# Заявка на мероприятие.
+ACT_TITLE_MIN = 3
+ACT_TITLE_MAX = 100
+ACT_DESC_MIN = 10
+ACT_DESC_MAX = 2000
+ACT_URL_MAX = 512
+
+# Заявка на голосование (лимиты Telegram: вопрос до 300, вариант до 100, 2–10 вариантов).
+VOTE_QUESTION_MIN = 5
+VOTE_QUESTION_MAX = 300
+VOTE_OPTION_MAX = 100
+VOTE_OPTIONS_MIN = 2
+VOTE_OPTIONS_MAX = 10
