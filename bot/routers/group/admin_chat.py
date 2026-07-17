@@ -20,7 +20,8 @@ from bot.keyboards.callback_data import AdminCallCB
 
 router = Router(name="admin_chat")
 
-_SERVICE_MESSAGE = (
+# Общий фильтр «служебное сообщение» — им же пользуется чистка в общей группе.
+SERVICE_MESSAGE = (
     F.new_chat_members
     | F.left_chat_member
     | F.new_chat_title
@@ -31,7 +32,7 @@ _SERVICE_MESSAGE = (
 )
 
 
-@router.message(F.chat.id == settings.admin_chat_id, _SERVICE_MESSAGE)
+@router.message(F.chat.id == settings.admin_chat_id, SERVICE_MESSAGE)
 async def delete_service_message(message: Message) -> None:
     try:
         await message.delete()

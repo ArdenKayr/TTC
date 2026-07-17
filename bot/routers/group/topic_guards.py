@@ -11,6 +11,7 @@ from bot.config import settings
 from bot.db.models import User
 from bot.enums import UserRole
 from bot.keyboards.common_kb import admin_call_kb
+from bot.routers.group.admin_chat import SERVICE_MESSAGE
 from bot.services import notification_service
 
 router = Router(name="topic_guards")
@@ -39,6 +40,21 @@ async def _notify_admin_call(message: Message) -> None:
 async def cmd_admin_call(message: Message) -> None:
     if _is_main_group(message):
         await _notify_admin_call(message)
+
+
+@router.message(F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}), SERVICE_MESSAGE)
+async def delete_group_service_message(message: Message) -> None:
+    """Служебный мусор в общей группе («X присоединился» и т.п.) — удаляем.
+
+    Такие сообщения Telegram публикует в теме General. Нужно право
+    «Удаление сообщений» в группе — без него молча оставляем.
+    """
+    if not _is_main_group(message):
+        return
+    try:
+        await message.delete()
+    except TelegramAPIError:
+        pass
 
 
 @router.message(F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
