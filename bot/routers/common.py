@@ -1,3 +1,5 @@
+from html import escape
+
 from aiogram import F, Router
 from aiogram.enums import ChatType
 from aiogram.filters import Command, CommandObject, CommandStart
@@ -65,6 +67,8 @@ async def cmd_report(message: Message, command: CommandObject, db_user: User | N
     username = f"@{db_user.username}" if db_user.username else f"id {db_user.tg_id}"
     await notification_service.send_admin_report(
         message.bot,
-        texts.REPORT_CARD.format(name=db_user.display_name, username=username, text=text),
+        texts.REPORT_CARD.format(
+            name=escape(db_user.display_name), username=escape(username), text=escape(text)
+        ),
     )
     await message.answer(texts.REPORT_SENT)

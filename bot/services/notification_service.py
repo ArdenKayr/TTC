@@ -20,10 +20,13 @@ async def send_admin_card(
     )
 
 
-async def send_admin_report(bot: Bot, text: str) -> None:
+async def send_admin_report(
+    bot: Bot, text: str, keyboard: InlineKeyboardMarkup | None = None
+) -> None:
     await bot.send_message(
         settings.admin_chat_id,
         text,
+        reply_markup=keyboard,
         message_thread_id=settings.admin_topic_reports_id,
     )
 

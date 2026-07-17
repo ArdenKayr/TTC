@@ -22,6 +22,10 @@ class NoopCB(CallbackData, prefix="noop"):
     """Декоративная кнопка (например, счётчик страниц) — нажатие ничего не делает."""
 
 
+class AdminCallCB(CallbackData, prefix="admcall"):
+    """«Возьмусь» под вызовом админов в админ-чате."""
+
+
 class PermHomeCB(CallbackData, prefix="phome"):
     pass
 

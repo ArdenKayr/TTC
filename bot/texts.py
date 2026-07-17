@@ -13,6 +13,7 @@ class BTN:
 
     START_REGISTER = "📝 Регистрация"
     START_ABOUT = "ℹ️ Кто мы?"
+    CALL_CLAIM = "🙋 Возьмусь"
     UNI_PAGE_PREV = "⬅️ Назад"
     UNI_PAGE_NEXT = "Вперёд ➡️"
     UNI_SHOW_ALL = "🔄 Показать все вузы"
@@ -82,7 +83,12 @@ REPORT_NOT_REGISTERED = "Репорты доступны после регист
 REPORT_USAGE = "Использование: /report <описание проблемы или бага>"
 REPORT_SENT = "Спасибо! Репорт отправлен админам."
 REPORT_CARD = "🐞 Репорт от {name} ({username}):\n\n{text}"
-ADMIN_CALL_REPORT = "⚠️ Вызов админа в группе от {who}:\n{link}"
+ADMIN_CALL_REPORT = "🆘 {who} зовёт админов в группе:\n{link}"
+# Маркер «взялись»: по его наличию в тексте определяется, что вызов уже разобран.
+ADMIN_CALL_CLAIMED_MARK = "🙋 Взялся(-ась):"
+ADMIN_CALL_CLAIMED = "\n\n🙋 Взялся(-ась): <b>{name}</b>"
+ADMIN_CALL_CLAIM_OK = "Записано за вами"
+ADMIN_CALL_ALREADY_TAKEN = "За этот вызов уже взялись."
 
 # --- Анкета регистрации ---
 REG_START = "📝 <b>Регистрация</b>\n\nКак к вам обращаться? Введите имя или ник:"
