@@ -24,7 +24,7 @@ from bot.keyboards.activity_kb import (
 )
 from bot.keyboards.common_kb import main_menu_kb
 from bot.routers.common import send_start_screen
-from bot.services import activity_service, notification_service
+from bot.services import activity_service, notification_service, scenario_service
 from bot.states.activity_states import ActivityForm, VoteForm
 
 router = Router(name="activities")
@@ -222,7 +222,7 @@ async def act_submit(
         activity_service.build_act_card(db_user, request),
         act_review_kb(str(request.request_id)),
     )
-    await message.answer(texts.ACT_SENT, reply_markup=main_menu_kb(db_user))
+    await scenario_service.reply(message, session, "act_sent", main_menu_kb(db_user))
 
 
 @router.message(ActivityForm.confirm, F.text == texts.BTN.REG_RESTART)
@@ -305,7 +305,7 @@ async def vote_submit(
         activity_service.build_vote_card(db_user, request.question, list(request.options)),
         vote_review_kb(str(request.request_id)),
     )
-    await message.answer(texts.VOTE_SENT, reply_markup=main_menu_kb(db_user))
+    await scenario_service.reply(message, session, "vote_sent", main_menu_kb(db_user))
 
 
 @router.message(VoteForm.confirm, F.text == texts.BTN.REG_RESTART)

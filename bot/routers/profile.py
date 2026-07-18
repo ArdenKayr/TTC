@@ -20,7 +20,7 @@ from bot.keyboards.activity_kb import form_cancel_kb
 from bot.keyboards.callback_data import ProfileDeleteCB, ProfileEditCB
 from bot.keyboards.common_kb import main_menu_kb
 from bot.routers.common import send_start_screen
-from bot.services import profile_service
+from bot.services import profile_service, scenario_service
 from bot.states.profile_states import ProfileForm
 
 router = Router(name="profile")
@@ -105,7 +105,7 @@ async def _saved(
 ) -> None:
     await profile_service.log_profile_update(session, db_user, field)
     await state.clear()
-    await message.answer(texts.PROFILE_UPDATED, reply_markup=main_menu_kb(db_user))
+    await scenario_service.reply(message, session, "profile_updated", main_menu_kb(db_user))
     await message.answer(
         await profile_service.render_profile(session, db_user), reply_markup=profile_kb()
     )
@@ -224,5 +224,5 @@ async def cb_delete_do(
     await state.clear()
     await profile_service.delete_account(session, callback.bot, db_user)
     await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.message.answer(texts.PROFILE_DELETED, reply_markup=main_menu_kb(None))
+    await scenario_service.reply(callback.message, session, "profile_deleted", main_menu_kb(None))
     await callback.answer()

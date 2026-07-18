@@ -9,6 +9,7 @@ from bot.config import settings
 from bot.db.models import User
 from bot.db.repositories import audit_repo
 from bot.enums import AuditAction, UserRole, role_rank
+from bot.services import scenario_service
 
 # Иерархия назначений: простые админы роли не раздают, суперадмин назначает
 # до админа включительно, владелец — до суперадмина. Роль «владелец» не
@@ -88,6 +89,8 @@ async def ban_user(
         reason=reason,
     )
     await session.commit()
+    # Цель узнаёт о бане в ЛС (текст редактируется в «Сценариях»).
+    await scenario_service.dm(bot, session, target.tg_id, "ban_target")
     return None
 
 
@@ -114,4 +117,5 @@ async def unban_user(session: AsyncSession, bot: Bot, actor: User, target: User)
         meta={"restored_role": restored.value},
     )
     await session.commit()
+    await scenario_service.dm(bot, session, target.tg_id, "unban_target")
     return None

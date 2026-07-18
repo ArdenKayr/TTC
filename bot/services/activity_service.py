@@ -17,7 +17,7 @@ from bot import limits, texts
 from bot.db.models import Activity, ActivityRequest, User, VoteRequest
 from bot.db.repositories import audit_repo
 from bot.enums import ActivityStatus, AuditAction, RequestStatus, UserRole
-from bot.services import notification_service
+from bot.services import notification_service, scenario_service
 
 
 def parse_vote_options(raw: str) -> list[str] | None:
@@ -151,9 +151,9 @@ async def approve_activity(
         target_entity_id=str(request.request_id),
     )
 
-    dm_text = texts.ACT_APPROVED_DM if promoted else texts.ACT_APPROVED_DM_ALREADY_ORG
-    delivered = await notification_service.dm_user(
-        bot, author.tg_id, dm_text.format(title=escape(request.title))
+    dm_key = "act_approved" if promoted else "act_approved_org"
+    delivered = await scenario_service.dm(
+        bot, session, author.tg_id, dm_key, title=escape(request.title)
     )
     if not delivered:
         notes.append(texts.NOTE_DM_FAILED)
@@ -180,8 +180,8 @@ async def reject_activity(
         target_entity_id=str(request.request_id),
     )
     notes = [texts.ACT_REJECTED_NOTE.format(admin=admin.display_name)]
-    delivered = await notification_service.dm_user(
-        bot, request.tg_id, texts.ACT_REJECTED_DM.format(title=escape(request.title))
+    delivered = await scenario_service.dm(
+        bot, session, request.tg_id, "act_rejected", title=escape(request.title)
     )
     if not delivered:
         notes.append(texts.NOTE_DM_FAILED)
@@ -215,8 +215,8 @@ async def approve_vote(
         target_entity_type="vote_request",
         target_entity_id=str(request.request_id),
     )
-    delivered = await notification_service.dm_user(
-        bot, request.tg_id, texts.VOTE_APPROVED_DM.format(question=escape(request.question))
+    delivered = await scenario_service.dm(
+        bot, session, request.tg_id, "vote_approved", question=escape(request.question)
     )
     if not delivered:
         notes.append(texts.NOTE_DM_FAILED)
@@ -242,8 +242,8 @@ async def reject_vote(
         target_entity_id=str(request.request_id),
     )
     notes = [texts.VOTE_REJECTED_NOTE.format(admin=admin.display_name)]
-    delivered = await notification_service.dm_user(
-        bot, request.tg_id, texts.VOTE_REJECTED_DM.format(question=escape(request.question))
+    delivered = await scenario_service.dm(
+        bot, session, request.tg_id, "vote_rejected", question=escape(request.question)
     )
     if not delivered:
         notes.append(texts.NOTE_DM_FAILED)
@@ -308,11 +308,12 @@ async def finish_activity(
         target_entity_id=str(activity.activity_id),
     )
 
-    dm_text = texts.ACT_CANCELLED_DM if cancelled else texts.ACT_COMPLETED_DM
-    dm = dm_text.format(title=escape(activity.title))
+    dm_key = "act_cancelled" if cancelled else "act_completed"
+    await scenario_service.dm(
+        bot, session, activity.organizer_id, dm_key, title=escape(activity.title)
+    )
     if demoted:
-        dm += "\n\n" + texts.ORG_DEMOTED_DM
-    await notification_service.dm_user(bot, activity.organizer_id, dm)
+        await scenario_service.dm(bot, session, activity.organizer_id, "org_demoted")
 
     await session.commit()
     note = texts.ACT_CANCELLED_NOTE if cancelled else texts.ACT_COMPLETED_NOTE

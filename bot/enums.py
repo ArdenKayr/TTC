@@ -77,3 +77,6 @@ class AuditAction(str, Enum):
     ORGANIZER_DEMOTED = "organizer_demoted"
     PROFILE_UPDATED = "profile_updated"
     ACCOUNT_DELETED = "account_deleted"
+    CRUD_CREATED = "crud_created"
+    CRUD_UPDATED = "crud_updated"
+    CRUD_DELETED = "crud_deleted"

@@ -1,0 +1,327 @@
+"""CRUD-панель: прямой доступ суперадминов и владельца к таблицам БД.
+
+Каждая таблица описана TableSpec: короткий код (влезает в callback_data),
+модель SQLAlchemy и ярлык записи для списка. Владелец видит все таблицы,
+суперадмины — только разрешённые; users для суперадминов только на чтение
+(роли меняются через панель «Пользователи», где работает иерархия).
+Каждое изменение через CRUD пишется в audit_log.
+"""
+
+import json
+import uuid
+from dataclasses import dataclass
+from datetime import date, datetime, timezone
+from enum import Enum
+from html import escape
+from typing import Any, Callable
+
+import sqlalchemy as sa
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from bot.db.models import (
+    Activity,
+    ActivityRequest,
+    AliasSuggestion,
+    AuditLog,
+    ContentBlock,
+    ErrorLog,
+    PermissionGroup,
+    RegistrationRequest,
+    University,
+    UniversityAlias,
+    UniversityRequest,
+    User,
+    VoteRequest,
+)
+from bot.enums import UserRole
+
+PAGE_SIZE = 8
+_VALUE_LIMIT = 300  # сколько символов значения показывать в карточке записи
+
+
+@dataclass(frozen=True)
+class TableSpec:
+    code: str
+    title: str
+    model: type
+    label: Callable[[Any], str]
+    superadmin: bool = True  # видна ли суперадминам (иначе только владельцу)
+    read_only: bool = False  # запрет изменений (аудит- и лог-таблицы)
+    write_owner_only: bool = False  # менять может только владелец (users)
+    create_fields: tuple[str, ...] = ()  # поля для «Создать запись» (пусто = нельзя)
+
+
+def _short(text: str | None, limit: int = 35) -> str:
+    text = (text or "").strip() or "—"
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+_SPECS = [
+    TableSpec(
+        "u",
+        "Пользователи",
+        User,
+        lambda o: f"{_short(o.display_name, 25)} · {o.current_role.value}",
+        write_owner_only=True,
+    ),
+    TableSpec("uni", "Вузы", University, lambda o: _short(o.canonical_name),
+              create_fields=("canonical_name", "city")),
+    TableSpec(
+        "ual",
+        "Варианты поиска вузов",
+        UniversityAlias,
+        lambda o: _short(o.alias_text),
+        create_fields=("university_id", "alias_text"),
+    ),
+    TableSpec(
+        "reg",
+        "Заявки на регистрацию",
+        RegistrationRequest,
+        lambda o: f"{_short(o.full_name, 25)} · {o.status.value}",
+    ),
+    TableSpec(
+        "unir",
+        "Заявки на вузы",
+        UniversityRequest,
+        lambda o: f"{_short(o.name, 25)} · {o.status.value}",
+    ),
+    TableSpec(
+        "als",
+        "Предложения вариантов",
+        AliasSuggestion,
+        lambda o: f"{_short(o.alias_text, 25)} · {o.status.value}",
+    ),
+    TableSpec(
+        "actr",
+        "Заявки на мероприятия",
+        ActivityRequest,
+        lambda o: f"{_short(o.title, 25)} · {o.status.value}",
+    ),
+    TableSpec(
+        "act",
+        "Мероприятия",
+        Activity,
+        lambda o: f"{_short(o.title, 25)} · {o.status.value}",
+    ),
+    TableSpec(
+        "vote",
+        "Заявки на голосования",
+        VoteRequest,
+        lambda o: f"{_short(o.question, 25)} · {o.status.value}",
+    ),
+    TableSpec(
+        "perm", "Группы прав", PermissionGroup, lambda o: _short(o.name), superadmin=False
+    ),
+    TableSpec(
+        "cont", "Контент и сценарии", ContentBlock, lambda o: _short(o.slot), superadmin=False
+    ),
+    TableSpec(
+        "aud",
+        "Аудит-лог",
+        AuditLog,
+        lambda o: f"{o.log_id} · {_short(o.action_type, 25)}",
+        superadmin=False,
+        read_only=True,
+    ),
+    TableSpec(
+        "err",
+        "Логи ошибок",
+        ErrorLog,
+        lambda o: f"{o.id} · {_short(o.exception_type, 25)}",
+        superadmin=False,
+        read_only=True,
+    ),
+]
+TABLES: dict[str, TableSpec] = {s.code: s for s in _SPECS}
+
+
+def specs_for(user: User) -> list[TableSpec]:
+    is_owner = user.current_role == UserRole.OWNER
+    return [s for s in _SPECS if is_owner or s.superadmin]
+
+
+def can_view(user: User, spec: TableSpec) -> bool:
+    return user.current_role == UserRole.OWNER or spec.superadmin
+
+
+def can_write(user: User, spec: TableSpec) -> bool:
+    if spec.read_only:
+        return False
+    if spec.write_owner_only and user.current_role != UserRole.OWNER:
+        return False
+    return can_view(user, spec)
+
+
+def columns(spec: TableSpec) -> list[sa.Column]:
+    return list(sa.inspect(spec.model).columns)
+
+
+def pk_col(spec: TableSpec) -> sa.Column:
+    return sa.inspect(spec.model).primary_key[0]
+
+
+def parse_pk(spec: TableSpec, raw: str) -> Any:
+    pt = pk_col(spec).type.python_type
+    if pt is int:
+        return int(raw)
+    if pt is uuid.UUID:
+        return uuid.UUID(raw)
+    return raw
+
+
+async def count(session: AsyncSession, spec: TableSpec) -> int:
+    return await session.scalar(select(func.count()).select_from(spec.model)) or 0
+
+
+async def page_rows(session: AsyncSession, spec: TableSpec, page: int) -> list[Any]:
+    result = await session.scalars(
+        select(spec.model)
+        .order_by(pk_col(spec).desc())
+        .offset(page * PAGE_SIZE)
+        .limit(PAGE_SIZE)
+    )
+    return list(result)
+
+
+async def get_row(session: AsyncSession, spec: TableSpec, raw_pk: str) -> Any | None:
+    try:
+        pk = parse_pk(spec, raw_pk)
+    except (ValueError, TypeError):
+        return None
+    return await session.get(spec.model, pk)
+
+
+def fmt_value(value: Any, limit: int = _VALUE_LIMIT) -> str:
+    """Значение поля для показа в карточке (уже экранировано)."""
+    if value is None:
+        return "—"
+    if isinstance(value, Enum):
+        return escape(value.value)
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, datetime):
+        return value.strftime("%d.%m.%Y %H:%M:%S")
+    if isinstance(value, date):
+        return value.strftime("%d.%m.%Y")
+    if isinstance(value, (dict, list)):
+        value = json.dumps(value, ensure_ascii=False)
+    text = str(value)
+    if len(text) > limit:
+        text = text[: limit - 1] + "…"
+    return escape(text)
+
+
+def value_hint(col: sa.Column) -> str:
+    """Подсказка о формате значения для ввода."""
+    try:
+        pt = col.type.python_type
+    except NotImplementedError:
+        pt = str
+    if issubclass(pt, Enum):
+        allowed = ", ".join(m.value for m in pt)
+        hint = f"Одно из: {allowed}."
+    elif pt is bool:
+        hint = "Логическое: да/нет (true/false, 1/0)."
+    elif pt is int:
+        hint = "Целое число."
+    elif pt is uuid.UUID:
+        hint = "UUID."
+    elif pt is date:
+        hint = "Дата в формате ДД.ММ.ГГГГ."
+    elif pt is datetime:
+        hint = "Дата-время: ДД.ММ.ГГГГ ЧЧ:ММ (или ISO)."
+    elif pt in (dict, list):
+        hint = "JSON."
+    else:
+        length = getattr(col.type, "length", None)
+        hint = f"Текст до {length} символов." if length else "Текст."
+    if col.nullable:
+        hint += " «-» — очистить поле."
+    return hint
+
+
+_TRUE = {"1", "true", "да", "yes", "+"}
+_FALSE = {"0", "false", "нет", "no"}
+
+
+def parse_value(col: sa.Column, raw: str) -> Any:
+    """Значение из текста админа. ValueError с человеческим объяснением — если не вышло."""
+    raw = raw.strip()
+    if raw == "-":
+        if not col.nullable:
+            raise ValueError("это поле нельзя очистить (NOT NULL)")
+        return None
+    try:
+        pt = col.type.python_type
+    except NotImplementedError:
+        pt = str
+    if issubclass(pt, Enum):
+        try:
+            return pt(raw)
+        except ValueError:
+            allowed = ", ".join(m.value for m in pt)
+            raise ValueError(f"допустимые значения: {allowed}") from None
+    if pt is bool:
+        low = raw.lower()
+        if low in _TRUE:
+            return True
+        if low in _FALSE:
+            return False
+        raise ValueError("нужно да/нет (true/false, 1/0)")
+    if pt is int:
+        try:
+            return int(raw)
+        except ValueError:
+            raise ValueError("нужно целое число") from None
+    if pt is uuid.UUID:
+        try:
+            return uuid.UUID(raw)
+        except ValueError:
+            raise ValueError("нужен UUID") from None
+    if pt is date:
+        try:
+            return datetime.strptime(raw, "%d.%m.%Y").date()
+        except ValueError:
+            raise ValueError("нужна дата в формате ДД.ММ.ГГГГ") from None
+    if pt is datetime:
+        for fmt in ("%d.%m.%Y %H:%M", "%d.%m.%Y"):
+            try:
+                return datetime.strptime(raw, fmt).replace(tzinfo=timezone.utc)
+            except ValueError:
+                pass
+        try:
+            parsed = datetime.fromisoformat(raw)
+        except ValueError:
+            raise ValueError("нужна дата-время: ДД.ММ.ГГГГ ЧЧ:ММ или ISO") from None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    if pt in (dict, list):
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"невалидный JSON ({e.msg})") from None
+    length = getattr(col.type, "length", None)
+    if length and len(raw) > length:
+        raise ValueError(f"текст длиннее {length} символов")
+    return raw
+
+
+def render_detail(spec: TableSpec, obj: Any, header: str) -> str:
+    from bot import texts  # локально: texts импортирует enums, а не наоборот
+
+    lines = [header]
+    for col in columns(spec):
+        lines.append(
+            texts.CRUD_ROW_FIELD.format(name=col.name, value=fmt_value(getattr(obj, col.key)))
+        )
+    text = "\n".join(lines)
+    return text if len(text) <= 4000 else text[:3999] + "…"
+
+
+def audit_value(value: Any) -> str | None:
+    """Значение для меты аудита: короткая строка или None."""
+    if value is None:
+        return None
+    if isinstance(value, Enum):
+        return value.value
+    return str(value)[:200]

@@ -8,7 +8,7 @@ from bot.db.models import User
 from bot.db.repositories import user_repo
 from bot.enums import PermissionModule, UserRole
 from bot.filters.role_filter import HasPerm, IsSuperadmin
-from bot.services import role_service
+from bot.services import role_service, scenario_service
 
 router = Router(name="admin_moderation")
 
@@ -39,7 +39,9 @@ async def cmd_ban(
     if error:
         await message.answer(error)
         return
-    await message.answer(texts.BAN_DONE.format(name=target.display_name, tg_id=target.tg_id))
+    await scenario_service.reply(
+        message, session, "ban_done", name=target.display_name, tg_id=target.tg_id
+    )
 
 
 @router.message(Command("unban"), HasPerm(PermissionModule.MODERATION))

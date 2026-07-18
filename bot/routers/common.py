@@ -10,7 +10,7 @@ from bot import texts
 from bot.db.models import User
 from bot.keyboards.callback_data import StartCB
 from bot.keyboards.common_kb import main_menu_kb
-from bot.services import content_service, notification_service
+from bot.services import content_service, notification_service, scenario_service
 
 router = Router(name="common")
 
@@ -54,7 +54,9 @@ async def cb_about(callback: CallbackQuery, session: AsyncSession) -> None:
 
 
 @router.message(Command("report"), F.chat.type == ChatType.PRIVATE)
-async def cmd_report(message: Message, command: CommandObject, db_user: User | None) -> None:
+async def cmd_report(
+    message: Message, command: CommandObject, session: AsyncSession, db_user: User | None
+) -> None:
     if db_user is None:
         await message.answer(texts.REPORT_NOT_REGISTERED)
         return
@@ -69,4 +71,4 @@ async def cmd_report(message: Message, command: CommandObject, db_user: User | N
             name=escape(db_user.display_name), username=escape(username), text=escape(text)
         ),
     )
-    await message.answer(texts.REPORT_SENT)
+    await scenario_service.reply(message, session, "report_sent")

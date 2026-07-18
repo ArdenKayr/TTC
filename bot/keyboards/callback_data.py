@@ -122,3 +122,55 @@ class ContentSlotCB(CallbackData, prefix="cslot"):
 
 class ContentActionCB(CallbackData, prefix="cact"):
     action: str  # remove_file | cancel
+
+
+class ScenGroupCB(CallbackData, prefix="sgrp"):
+    g: int  # индекс в scenario_service.GROUPS
+
+
+class ScenKeyCB(CallbackData, prefix="skey"):
+    key: str
+
+
+class ScenActionCB(CallbackData, prefix="sact"):
+    action: str  # reset | rmfile | back
+    key: str
+
+
+class CrudHomeCB(CallbackData, prefix="crhome"):
+    pass
+
+
+class CrudTableCB(CallbackData, prefix="crtab"):
+    t: str  # короткий код таблицы из crud_service.TABLES
+
+
+class CrudPageCB(CallbackData, prefix="crpage"):
+    t: str
+    page: int
+
+
+class CrudRowCB(CallbackData, prefix="crrow"):
+    t: str
+    pk: str
+    page: int = 0
+
+
+class CrudFieldCB(CallbackData, prefix="crfld"):
+    t: str
+    pk: str
+    i: int  # индекс колонки в crud_service.columns()
+
+
+class CrudDelCB(CallbackData, prefix="crdel"):
+    t: str
+    pk: str
+    confirmed: bool = False
+
+
+class CrudNewCB(CallbackData, prefix="crnew"):
+    t: str
+
+
+class CrudCancelCB(CallbackData, prefix="crcancel"):
+    pass

@@ -39,7 +39,7 @@ router.callback_query.filter(IsSuperadmin())
 _PRIVATE = F.chat.type == ChatType.PRIVATE
 
 
-def _user_card(target: User) -> tuple[str, InlineKeyboardMarkup]:
+def _user_card(target: User, actor: User) -> tuple[str, InlineKeyboardMarkup]:
     username = f"@{target.username}" if target.username else texts.PROFILE_EMPTY_FIELD
     text = texts.SUPER_USER_CARD.format(
         name=escape(target.display_name),
@@ -47,33 +47,47 @@ def _user_card(target: User) -> tuple[str, InlineKeyboardMarkup]:
         tg_id=target.tg_id,
         role=texts.ROLE_LABELS.get(target.current_role, target.current_role.value),
     )
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=texts.BTN.SUPER_CUSTOM,
+                callback_data=SuperUserCB(action="custom", tg_id=target.tg_id).pack(),
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text=texts.BTN.SUPER_MAKE_ADMIN,
+                callback_data=SuperUserCB(action="make_admin", tg_id=target.tg_id).pack(),
+            ),
+            InlineKeyboardButton(
+                text=texts.BTN.SUPER_REMOVE_ADMIN,
+                callback_data=SuperUserCB(action="remove_admin", tg_id=target.tg_id).pack(),
+            ),
+        ],
+    ]
+    # Суперадминов назначает и снимает только владелец.
+    if actor.current_role == UserRole.OWNER:
+        rows.append(
             [
                 InlineKeyboardButton(
-                    text=texts.BTN.SUPER_CUSTOM,
-                    callback_data=SuperUserCB(action="custom", tg_id=target.tg_id).pack(),
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text=texts.BTN.SUPER_MAKE_ADMIN,
-                    callback_data=SuperUserCB(action="make_admin", tg_id=target.tg_id).pack(),
+                    text=texts.BTN.SUPER_MAKE_SUPER,
+                    callback_data=SuperUserCB(action="make_super", tg_id=target.tg_id).pack(),
                 ),
                 InlineKeyboardButton(
-                    text=texts.BTN.SUPER_REMOVE_ADMIN,
-                    callback_data=SuperUserCB(action="remove_admin", tg_id=target.tg_id).pack(),
+                    text=texts.BTN.SUPER_REMOVE_SUPER,
+                    callback_data=SuperUserCB(action="remove_super", tg_id=target.tg_id).pack(),
                 ),
-            ],
-            [
-                InlineKeyboardButton(
-                    text=texts.BTN.SUPER_BAN,
-                    callback_data=SuperUserCB(action="ban", tg_id=target.tg_id).pack(),
-                )
-            ],
+            ]
+        )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text=texts.BTN.SUPER_BAN,
+                callback_data=SuperUserCB(action="ban", tg_id=target.tg_id).pack(),
+            )
         ]
     )
-    return text, kb
+    return text, InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 @router.message(_PRIVATE, StateFilter(None), F.text == texts.BTN.ADMIN_PANEL_USERS)
@@ -116,12 +130,12 @@ async def lookup_user(
         texts.ADMIN_MODE_ON,
         reply_markup=admin_panel_kb(db_user.current_role == UserRole.OWNER),
     )
-    text, kb = _user_card(target)
+    text, kb = _user_card(target, db_user)
     await message.answer(text, reply_markup=kb)
 
 
-async def _refresh_card(callback: CallbackQuery, target: User) -> None:
-    text, kb = _user_card(target)
+async def _refresh_card(callback: CallbackQuery, target: User, actor: User) -> None:
+    text, kb = _user_card(target, actor)
     try:
         await callback.message.edit_text(text, reply_markup=kb)
     except Exception:  # текст не изменился — Telegram не даёт править без изменений
@@ -153,6 +167,13 @@ async def cb_user_action(
             await callback.answer(texts.SUPER_NOT_ADMIN, show_alert=True)
             return
         error = await role_service.set_role(session, db_user, target, UserRole.USER)
+    elif callback_data.action == "make_super":
+        error = await role_service.set_role(session, db_user, target, UserRole.SUPERADMIN)
+    elif callback_data.action == "remove_super":
+        if target.current_role != UserRole.SUPERADMIN:
+            await callback.answer(texts.SUPER_NOT_SUPER, show_alert=True)
+            return
+        error = await role_service.set_role(session, db_user, target, UserRole.ADMIN)
     elif callback_data.action == "ban":
         error = await role_service.ban_user(session, callback.bot, db_user, target, None)
     else:
@@ -162,5 +183,5 @@ async def cb_user_action(
     if error:
         await callback.answer(error, show_alert=True)
         return
-    await _refresh_card(callback, target)
+    await _refresh_card(callback, target, db_user)
     await callback.answer(texts.SUPER_DONE)

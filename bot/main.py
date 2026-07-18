@@ -14,7 +14,9 @@ from bot.middlewares.role_guard import UserLoaderMiddleware
 from bot.routers.activities import router as activities_router
 from bot.routers.admin.activity_review import router as activity_review_router
 from bot.routers.admin.content_admin import router as content_admin_router
+from bot.routers.admin.crud_admin import router as crud_admin_router
 from bot.routers.admin.moderation import router as moderation_router
+from bot.routers.admin.scenario_admin import router as scenario_admin_router
 from bot.routers.admin.permissions_admin import router as permissions_admin_router
 from bot.routers.admin.registration_review import router as registration_review_router
 from bot.routers.admin.university_review import router as university_review_router
@@ -25,6 +27,7 @@ from bot.routers.profile import router as profile_router
 from bot.routers.registration import router as registration_router
 from bot.routers.superadmin import router as superadmin_router
 from bot.routers.user_menu import router as user_menu_router
+from bot.services.error_service import on_error
 
 logging.basicConfig(level=logging.INFO)
 
@@ -63,12 +66,16 @@ async def main() -> None:
         registration_router,
         activities_router,
         superadmin_router,
+        crud_admin_router,
+        scenario_admin_router,
         user_menu_router,
         profile_router,
         admin_chat_router,
         topic_guards_router,
         common_router,
     )
+    # Любая необработанная ошибка хендлера: в error_log + карточка владельцу в ЛС.
+    dp.errors.register(on_error)
 
     await bot.delete_webhook(drop_pending_updates=True)
     await resolve_group_chat_id(bot)

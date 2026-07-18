@@ -13,7 +13,7 @@ from bot.db.models import RegistrationRequest, UniversityRequest, User
 from bot.db.repositories import audit_repo, registration_repo, university_repo, user_repo
 from bot.enums import AuditAction, RequestStatus, UserRole
 from bot.keyboards.admin_kb import registration_review_kb, university_request_review_kb
-from bot.services import notification_service
+from bot.services import notification_service, scenario_service
 from bot.services.throttle import rejection_timeout_minutes
 
 INVITE_LINK_TTL = timedelta(minutes=15)
@@ -189,8 +189,8 @@ async def approve(
     else:
         notes.append(texts.NOTE_GROUP_NOT_SET)
 
-    delivered = await notification_service.dm_user(
-        bot, request.tg_id, texts.APPROVED_DM + invite_line
+    delivered = await scenario_service.dm(
+        bot, session, request.tg_id, "reg_approved", suffix=invite_line
     )
     if not delivered:
         notes.append(texts.NOTE_DM_FAILED)
@@ -236,14 +236,14 @@ async def reject(
     if reason:
         request.admin_comment = reason
 
-    text = texts.REJECTED_DM
+    suffix = ""
     if reason:
-        text += texts.REJECTED_DM_REASON.format(reason=reason)
+        suffix += texts.REJECTED_DM_REASON.format(reason=reason)
     if timeout > 0:
-        text += texts.REJECTED_DM_TIMEOUT.format(minutes=timeout)
+        suffix += texts.REJECTED_DM_TIMEOUT.format(minutes=timeout)
     else:
-        text += texts.REJECTED_DM_RETRY
-    await notification_service.dm_user(bot, request.tg_id, text)
+        suffix += texts.REJECTED_DM_RETRY
+    await scenario_service.dm(bot, session, request.tg_id, "reg_rejected", suffix=suffix)
 
     await audit_repo.add(
         session,

@@ -20,7 +20,7 @@ from bot.enums import UserRole
 from bot.keyboards.activity_kb import form_cancel_kb
 from bot.keyboards.common_kb import admin_panel_kb, info_menu_kb, main_menu_kb
 from bot.routers.common import send_start_screen
-from bot.services import content_service, notification_service
+from bot.services import content_service, notification_service, scenario_service
 from bot.states.profile_states import ReportForm
 
 router = Router(name="user_menu")
@@ -107,7 +107,7 @@ async def report_start_over(
 
 @router.message(ReportForm.text, F.text, ~F.text.startswith("/"))
 async def report_text(
-    message: Message, state: FSMContext, db_user: User | None
+    message: Message, session: AsyncSession, state: FSMContext, db_user: User | None
 ) -> None:
     if db_user is None:
         await state.clear()
@@ -126,7 +126,7 @@ async def report_text(
             name=escape(db_user.display_name), username=escape(username), text=escape(text)
         ),
     )
-    await message.answer(texts.REPORT_SENT, reply_markup=main_menu_kb(db_user))
+    await scenario_service.reply(message, session, "report_sent", main_menu_kb(db_user))
 
 
 # --- Режим «Админство» (только меню, команды работают всегда) ---
@@ -147,15 +147,13 @@ async def admin_mode_off(message: Message, db_user: User | None) -> None:
     await message.answer(texts.ADMIN_MODE_OFF, reply_markup=main_menu_kb(db_user))
 
 
-# «Манипуляция с пользователем» живёт в routers/superadmin.py;
-# остальные кнопки панели — заглушки до блоков C/D.
+# «Пользователи» — routers/superadmin.py; «CRUD» — admin/crud_admin.py;
+# «Сценарии» — admin/scenario_admin.py. Заглушки — только до блока D.
 @router.message(
     _PRIVATE,
     StateFilter(None),
     F.text.in_(
         {
-            texts.BTN.ADMIN_PANEL_CRUD,
-            texts.BTN.ADMIN_PANEL_SCENARIOS,
             texts.BTN.ADMIN_PANEL_LOGS,
             texts.BTN.ADMIN_PANEL_UPDATES,
         }

@@ -30,7 +30,7 @@ from bot.keyboards.registration_kb import (
     university_browser_kb,
 )
 from bot.routers.common import send_start_screen
-from bot.services import registration_service, university_service
+from bot.services import registration_service, scenario_service, university_service
 from bot.states.registration_states import RegistrationForm
 
 router = Router(name="registration")
@@ -524,12 +524,10 @@ async def form_submit(message: Message, session: AsyncSession, state: FSMContext
         session, message.bot, message.from_user, data
     )
     await state.clear()
-    submitted = (
-        texts.REG_SUBMITTED_TWO_STEP
-        if request.university_request_id is not None
-        else texts.REG_SUBMITTED
+    submitted_key = (
+        "reg_submitted_two_step" if request.university_request_id is not None else "reg_submitted"
     )
-    await message.answer(submitted, reply_markup=main_menu_kb(None))
+    await scenario_service.reply(message, session, submitted_key, main_menu_kb(None))
 
 
 @router.message(RegistrationForm.confirm, F.text, ~F.text.startswith("/"))

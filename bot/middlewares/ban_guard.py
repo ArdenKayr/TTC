@@ -21,6 +21,15 @@ class BanGuardMiddleware(BaseMiddleware):
             if isinstance(event, CallbackQuery):
                 await event.answer(texts.BANNED_ALERT, show_alert=True)
             elif isinstance(event, Message) and event.chat.type == ChatType.PRIVATE:
-                await event.answer(texts.BANNED_DM)
+                # Текст редактируется в «Сценариях» (banned_guard); импорт локальный,
+                # чтобы не циклиться с сервисами, которые тянут middleware-стек.
+                from bot.services import scenario_service
+
+                session = data.get("session")
+                if session is not None:
+                    content = await scenario_service.render(session, "banned_guard")
+                    await event.answer(content.text)
+                else:
+                    await event.answer(texts.BANNED_DM)
             return None
         return await handler(event, data)
