@@ -21,7 +21,10 @@ class ActivityRequest(Base):
     tg_id: Mapped[int] = mapped_column(sa.ForeignKey("users.tg_id"))
     title: Mapped[str] = mapped_column(sa.String(100))
     description: Mapped[str] = mapped_column(sa.Text)
-    extra_url: Mapped[str | None] = mapped_column(sa.String(512))
+    organizers_text: Mapped[str | None] = mapped_column(sa.Text)  # кто проводит, @ники
+    plan_url: Mapped[str | None] = mapped_column(sa.String(512))  # план реализации
+    chat_url: Mapped[str | None] = mapped_column(sa.String(512))  # беседа мероприятия
+    admin_comment: Mapped[str | None] = mapped_column(sa.Text)  # комментарий админам
     status: Mapped[RequestStatus] = mapped_column(
         request_status_enum,
         default=RequestStatus.PENDING,
@@ -46,7 +49,9 @@ class Activity(Base):
     organizer_id: Mapped[int] = mapped_column(sa.ForeignKey("users.tg_id"), index=True)
     title: Mapped[str] = mapped_column(sa.String(100))
     description: Mapped[str] = mapped_column(sa.Text)
-    extra_url: Mapped[str | None] = mapped_column(sa.String(512))
+    organizers_text: Mapped[str | None] = mapped_column(sa.Text)
+    plan_url: Mapped[str | None] = mapped_column(sa.String(512))
+    chat_url: Mapped[str | None] = mapped_column(sa.String(512))
     status: Mapped[ActivityStatus] = mapped_column(
         activity_status_enum,
         default=ActivityStatus.ACTIVE,

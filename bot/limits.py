@@ -34,6 +34,15 @@ ACT_TITLE_MAX = 100
 ACT_DESC_MIN = 10
 ACT_DESC_MAX = 2000
 ACT_URL_MAX = 512
+ACT_ORGANIZERS_MAX = 500
+ACT_COMMENT_MAX = 1000
+
+# Репорт через кнопку меню.
+REPORT_MIN = 5
+REPORT_MAX = 2000
+
+# Учебная группа в профиле (как в анкете).
+GROUP_MAX = 50
 
 # Заявка на голосование (лимиты Telegram: вопрос до 300, вариант до 100, 2–10 вариантов).
 VOTE_QUESTION_MIN = 5

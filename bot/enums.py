@@ -75,3 +75,5 @@ class AuditAction(str, Enum):
     VOTE_REJECTED = "vote_rejected"
     ORGANIZER_PROMOTED = "organizer_promoted"
     ORGANIZER_DEMOTED = "organizer_demoted"
+    PROFILE_UPDATED = "profile_updated"
+    ACCOUNT_DELETED = "account_deleted"

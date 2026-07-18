@@ -206,7 +206,10 @@ erDiagram
 | `tg_id` | → `users.tg_id` — кто предложил |
 | `title` | Название мероприятия |
 | `description` | Описание (что, где, когда) — оно же попадёт в Афишу |
-| `extra_url` | Ссылка (чат мероприятия, пост, регистрация) — может быть пустой |
+| `organizers_text` | Организаторы со ссылками на Telegram (может быть пусто) |
+| `plan_url` | Ссылка на план реализации (Google Doc и т.п., может быть пусто) |
+| `chat_url` | Ссылка на беседу мероприятия (может быть пусто) |
+| `admin_comment` | Комментарий заявителя для админов (может быть пусто) |
 | `status` | `pending` / `approved` / `rejected` |
 | `processed_by`, `processed_at` | Какой админ и когда решил |
 | `created_at` | Когда подана |
@@ -221,8 +224,8 @@ erDiagram
 | Колонка | Что лежит |
 |---|---|
 | `activity_id` | Номер мероприятия (UUID) |
-| `organizer_id` | → `users.tg_id` — организатор |
-| `title`, `description`, `extra_url` | Скопированы из заявки |
+| `organizer_id` | → `users.tg_id` — организатор (кто подал заявку) |
+| `title`, `description`, `organizers_text`, `plan_url`, `chat_url` | Скопированы из заявки |
 | `status` | `active` (идёт) / `completed` (прошло) / `cancelled` (отменено) |
 | `afisha_message_id` | Номер сообщения-карточки в Афише — чтобы пометить её при закрытии |
 | `request_id` | → `activity_requests` — из какой заявки создано |
@@ -308,6 +311,8 @@ erDiagram
 | `0004` | + `permission_groups` и привязка людей к группам |
 | `0005` | − удалены 6 неиспользуемых таблиц будущих фаз (мероприятия и деньги) |
 | `0006` | + мероприятия и голосования в упрощённом виде: `activity_requests`, `activities`, `vote_requests` |
+| `0007` | + значения `superadmin` и `owner` в enum `user_role` |
+| `0008` | заявка на мероприятие расширена: вместо `extra_url` — `organizers_text`, `plan_url`, `chat_url`, `admin_comment` |
 
 **Посмотреть базу своими глазами:**
 

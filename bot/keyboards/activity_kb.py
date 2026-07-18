@@ -20,9 +20,9 @@ def form_cancel_kb() -> ReplyKeyboardMarkup:
     return _reply([_CANCEL_ROW])
 
 
-def url_step_kb() -> ReplyKeyboardMarkup:
-    """Шаг ссылки: можно пропустить."""
-    return _reply([[KeyboardButton(text=texts.BTN.ACT_SKIP_URL)], _CANCEL_ROW])
+def skip_step_kb() -> ReplyKeyboardMarkup:
+    """Необязательный шаг: «Пропустить» + «Отмена»."""
+    return _reply([[KeyboardButton(text=texts.BTN.SKIP)], _CANCEL_ROW])
 
 
 def confirm_kb() -> ReplyKeyboardMarkup:

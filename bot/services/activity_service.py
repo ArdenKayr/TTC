@@ -39,18 +39,35 @@ def user_label(user: User) -> str:
     return f"{escape(user.display_name)} ({username})"
 
 
-def _url_line(extra_url: str | None) -> str:
-    return texts.ACT_URL_LINE.format(url=escape(extra_url)) if extra_url else ""
+def act_details(
+    organizers_text: str | None,
+    plan_url: str | None,
+    chat_url: str | None,
+    admin_comment: str | None = None,
+) -> str:
+    """Строки-детали заявки/карточки: только заполненные поля."""
+    lines = ""
+    if organizers_text:
+        lines += texts.ACT_ORGANIZERS_LINE.format(organizers=escape(organizers_text))
+    if plan_url:
+        lines += texts.ACT_PLAN_LINE.format(url=escape(plan_url))
+    if chat_url:
+        lines += texts.ACT_CHAT_LINE.format(url=escape(chat_url))
+    if admin_comment:
+        lines += texts.ACT_COMMENT_LINE.format(comment=escape(admin_comment))
+    return lines
 
 
-def build_act_card(author: User, title: str, description: str, extra_url: str | None) -> str:
+def build_act_card(author: User, request: ActivityRequest) -> str:
     username = f"@{author.username}" if author.username else f"id {author.tg_id}"
     return texts.ACT_CARD.format(
         name=escape(author.display_name),
         username=escape(username),
-        title=escape(title),
-        description=escape(description),
-        url_line=_url_line(extra_url),
+        title=escape(request.title),
+        description=escape(request.description),
+        details=act_details(
+            request.organizers_text, request.plan_url, request.chat_url, request.admin_comment
+        ),
     )
 
 
@@ -75,7 +92,7 @@ def _afisha_text(activity: Activity, organizer: User) -> str:
         status_line=status_line,
         title=escape(activity.title),
         description=escape(activity.description),
-        url_line=_url_line(activity.extra_url),
+        details=act_details(activity.organizers_text, activity.plan_url, activity.chat_url),
         organizer=user_label(organizer),
     )
 
@@ -94,7 +111,9 @@ async def approve_activity(
         organizer_id=request.tg_id,
         title=request.title,
         description=request.description,
-        extra_url=request.extra_url,
+        organizers_text=request.organizers_text,
+        plan_url=request.plan_url,
+        chat_url=request.chat_url,
         request_id=request.request_id,
     )
     session.add(activity)

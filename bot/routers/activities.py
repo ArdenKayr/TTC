@@ -19,7 +19,7 @@ from bot.keyboards.activity_kb import (
     act_review_kb,
     confirm_kb,
     form_cancel_kb,
-    url_step_kb,
+    skip_step_kb,
     vote_review_kb,
 )
 from bot.keyboards.common_kb import main_menu_kb
@@ -69,9 +69,9 @@ async def start_vote_form(message: Message, state: FSMContext, db_user: User | N
 
 
 @router.message(_ANY_FORM, F.text == texts.BTN.REG_CANCEL)
-async def form_cancel(message: Message, state: FSMContext) -> None:
+async def form_cancel(message: Message, state: FSMContext, db_user: User | None) -> None:
     await state.clear()
-    await message.answer(texts.ACT_CANCELLED, reply_markup=main_menu_kb(registered=True))
+    await message.answer(texts.ACT_CANCELLED, reply_markup=main_menu_kb(db_user))
 
 
 @router.message(_ANY_FORM, CommandStart())
@@ -109,38 +109,94 @@ async def act_description(message: Message, state: FSMContext) -> None:
         )
         return
     await state.update_data(description=description)
-    await state.set_state(ActivityForm.extra_url)
+    await state.set_state(ActivityForm.organizers)
     await message.answer(
-        texts.ACT_URL_PROMPT.format(skip=texts.BTN.ACT_SKIP_URL), reply_markup=url_step_kb()
+        texts.ACT_ORGANIZERS_PROMPT.format(max=limits.ACT_ORGANIZERS_MAX, skip=texts.BTN.SKIP),
+        reply_markup=skip_step_kb(),
+    )
+
+
+@router.message(ActivityForm.organizers, F.text, ~F.text.startswith("/"))
+async def act_organizers(message: Message, state: FSMContext) -> None:
+    raw = message.text.strip()
+    if raw == texts.BTN.SKIP:
+        await state.update_data(organizers_text=None)
+    elif len(raw) > limits.ACT_ORGANIZERS_MAX:
+        await message.answer(
+            texts.ACT_ORGANIZERS_INVALID.format(
+                max=limits.ACT_ORGANIZERS_MAX, skip=texts.BTN.SKIP
+            )
+        )
+        return
+    else:
+        await state.update_data(organizers_text=raw)
+    await state.set_state(ActivityForm.plan_url)
+    await message.answer(texts.ACT_PLAN_PROMPT.format(skip=texts.BTN.SKIP))
+
+
+async def _act_take_url(message: Message, state: FSMContext, field: str) -> bool:
+    """Общий шаг-ссылка: кладёт значение (или None при пропуске) в data[field]."""
+    raw = message.text.strip()
+    if raw == texts.BTN.SKIP:
+        await state.update_data(**{field: None})
+        return True
+    if len(raw) > limits.ACT_URL_MAX:
+        await message.answer(
+            texts.ACT_URL_INVALID.format(max=limits.ACT_URL_MAX, skip=texts.BTN.SKIP)
+        )
+        return False
+    await state.update_data(**{field: raw})
+    return True
+
+
+@router.message(ActivityForm.plan_url, F.text, ~F.text.startswith("/"))
+async def act_plan_url(message: Message, state: FSMContext) -> None:
+    if not await _act_take_url(message, state, "plan_url"):
+        return
+    await state.set_state(ActivityForm.chat_url)
+    await message.answer(texts.ACT_CHAT_PROMPT.format(skip=texts.BTN.SKIP))
+
+
+@router.message(ActivityForm.chat_url, F.text, ~F.text.startswith("/"))
+async def act_chat_url(message: Message, state: FSMContext) -> None:
+    if not await _act_take_url(message, state, "chat_url"):
+        return
+    await state.set_state(ActivityForm.admin_comment)
+    await message.answer(
+        texts.ACT_COMMENT_PROMPT.format(max=limits.ACT_COMMENT_MAX, skip=texts.BTN.SKIP)
     )
 
 
 async def _act_show_confirm(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
-    url = data.get("extra_url")
     await state.set_state(ActivityForm.confirm)
     await message.answer(
         texts.ACT_CONFIRM.format(
             title=escape(data["title"]),
             description=escape(data["description"]),
-            url_line=texts.ACT_URL_LINE.format(url=escape(url)) if url else "",
+            details=activity_service.act_details(
+                data.get("organizers_text"),
+                data.get("plan_url"),
+                data.get("chat_url"),
+                data.get("admin_comment"),
+            ),
         ),
         reply_markup=confirm_kb(),
     )
 
 
-@router.message(ActivityForm.extra_url, F.text, ~F.text.startswith("/"))
-async def act_url(message: Message, state: FSMContext) -> None:
+@router.message(ActivityForm.admin_comment, F.text, ~F.text.startswith("/"))
+async def act_admin_comment(message: Message, state: FSMContext) -> None:
     raw = message.text.strip()
-    if raw == texts.BTN.ACT_SKIP_URL:
-        await state.update_data(extra_url=None)
-    elif len(raw) > limits.ACT_URL_MAX:
+    if raw == texts.BTN.SKIP:
+        await state.update_data(admin_comment=None)
+    elif len(raw) > limits.ACT_COMMENT_MAX:
         await message.answer(
-            texts.ACT_URL_INVALID.format(max=limits.ACT_URL_MAX, skip=texts.BTN.ACT_SKIP_URL)
+            texts.ACT_COMMENT_INVALID.format(max=limits.ACT_COMMENT_MAX, skip=texts.BTN.SKIP)
         )
         return
     else:
-        await state.update_data(extra_url=raw)
+        await state.update_data(admin_comment=raw)
     await _act_show_confirm(message, state)
 
 
@@ -154,18 +210,19 @@ async def act_submit(
         tg_id=db_user.tg_id,
         title=data["title"],
         description=data["description"],
-        extra_url=data.get("extra_url"),
+        organizers_text=data.get("organizers_text"),
+        plan_url=data.get("plan_url"),
+        chat_url=data.get("chat_url"),
+        admin_comment=data.get("admin_comment"),
     )
     session.add(request)
     await session.commit()
     await notification_service.send_admin_card(
         message.bot,
-        activity_service.build_act_card(
-            db_user, request.title, request.description, request.extra_url
-        ),
+        activity_service.build_act_card(db_user, request),
         act_review_kb(str(request.request_id)),
     )
-    await message.answer(texts.ACT_SENT, reply_markup=main_menu_kb(registered=True))
+    await message.answer(texts.ACT_SENT, reply_markup=main_menu_kb(db_user))
 
 
 @router.message(ActivityForm.confirm, F.text == texts.BTN.REG_RESTART)
@@ -248,7 +305,7 @@ async def vote_submit(
         activity_service.build_vote_card(db_user, request.question, list(request.options)),
         vote_review_kb(str(request.request_id)),
     )
-    await message.answer(texts.VOTE_SENT, reply_markup=main_menu_kb(registered=True))
+    await message.answer(texts.VOTE_SENT, reply_markup=main_menu_kb(db_user))
 
 
 @router.message(VoteForm.confirm, F.text == texts.BTN.REG_RESTART)

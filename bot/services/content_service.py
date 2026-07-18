@@ -23,6 +23,14 @@ class Slot:
 SLOTS: dict[str, Slot] = {
     "welcome": Slot("welcome", "Приветствие при запуске бота", texts.WELCOME_DEFAULT),
     "about": Slot("about", "«Кто мы?» — рассказ о сообществе", texts.ABOUT_DEFAULT),
+    "rules": Slot("rules", "Правила сообщества", texts.RULES_DEFAULT),
+    "docs": Slot("docs", "Документы", texts.DOCS_DEFAULT),
+    "updates": Slot("updates", "Обновления + архив", texts.UPDATES_DEFAULT),
+    "become_organizer": Slot("become_organizer", "Как стать организатором", texts.BECOME_ORG_DEFAULT),
+    "become_admin": Slot("become_admin", "Как стать админом", texts.BECOME_ADMIN_DEFAULT),
+    "admin_regulations": Slot(
+        "admin_regulations", "Админские регламенты (видят только суперадмины)", texts.ADMIN_REGS_DEFAULT
+    ),
 }
 
 

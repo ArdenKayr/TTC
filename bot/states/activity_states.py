@@ -4,7 +4,10 @@ from aiogram.fsm.state import State, StatesGroup
 class ActivityForm(StatesGroup):
     title = State()
     description = State()
-    extra_url = State()  # ссылка или «Без ссылки»
+    organizers = State()  # кто проводит, @ники (можно пропустить)
+    plan_url = State()  # ссылка на план реализации (можно пропустить)
+    chat_url = State()  # ссылка на беседу мероприятия (можно пропустить)
+    admin_comment = State()  # комментарий админам (можно пропустить)
     confirm = State()
 
 

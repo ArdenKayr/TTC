@@ -24,14 +24,12 @@ async def send_start_screen(
     """
     if db_user is None:
         content = await content_service.get_content(session, "welcome")
-        await content_service.send_content(
-            message, content, keyboard=main_menu_kb(registered=False)
-        )
+        await content_service.send_content(message, content, keyboard=main_menu_kb(None))
         return
     role = texts.ROLE_LABELS.get(db_user.current_role, db_user.current_role.value)
     await message.answer(
         texts.START_REGISTERED.format(name=db_user.display_name, role=role),
-        reply_markup=main_menu_kb(registered=True),
+        reply_markup=main_menu_kb(db_user),
     )
 
 

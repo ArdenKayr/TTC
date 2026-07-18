@@ -174,7 +174,7 @@ async def cb_start_register(
 @router.message(StateFilter(RegistrationForm), F.text == texts.BTN.REG_CANCEL)
 async def form_cancel(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer(texts.REG_CANCELLED, reply_markup=main_menu_kb(registered=False))
+    await message.answer(texts.REG_CANCELLED, reply_markup=main_menu_kb(None))
 
 
 @router.message(StateFilter(RegistrationForm), CommandStart())
@@ -517,7 +517,7 @@ async def form_submit(message: Message, session: AsyncSession, state: FSMContext
     error = await registration_service.check_can_apply(session, message.from_user.id)
     if error:
         await state.clear()
-        await message.answer(error, reply_markup=main_menu_kb(registered=False))
+        await message.answer(error, reply_markup=main_menu_kb(None))
         return
     data = await state.get_data()
     request = await registration_service.submit_request(
@@ -529,7 +529,7 @@ async def form_submit(message: Message, session: AsyncSession, state: FSMContext
         if request.university_request_id is not None
         else texts.REG_SUBMITTED
     )
-    await message.answer(submitted, reply_markup=main_menu_kb(registered=False))
+    await message.answer(submitted, reply_markup=main_menu_kb(None))
 
 
 @router.message(RegistrationForm.confirm, F.text, ~F.text.startswith("/"))

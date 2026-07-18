@@ -99,6 +99,14 @@ class ActLifecycleCB(CallbackData, prefix="actlife"):
     activity_id: str
 
 
+class ProfileEditCB(CallbackData, prefix="profedit"):
+    field: str  # nick | group | birth | about
+
+
+class ProfileDeleteCB(CallbackData, prefix="profdel"):
+    confirmed: bool = False
+
+
 class StartCB(CallbackData, prefix="start"):
     action: str  # register | about
 

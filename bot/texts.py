@@ -13,9 +13,33 @@ class BTN:
 
     START_REGISTER = "📝 Регистрация"
     START_ABOUT = "ℹ️ Кто мы?"
-    ACT_NEW = "📅 Предложить мероприятие"
-    VOTE_NEW = "📊 Предложить голосование"
-    ACT_SKIP_URL = "⏭ Без ссылки"
+    INFO = "ℹ️ Информация"
+    PROFILE = "👤 Мой профиль"
+    REPORT = "🐞 Репорт"
+    ACT_NEW = "📅 Заявка на мероприятие"
+    VOTE_NEW = "📊 Заявка на голосование"
+    ADMIN_MODE = "🛠 Админство"
+    INFO_RULES = "📜 Правила"
+    INFO_DOCS = "📄 Документы"
+    INFO_UPDATES = "🗞 Обновления + архив"
+    INFO_BECOME_ORG = "🚀 Стать организатором"
+    INFO_BECOME_ADMIN = "🛡 Стать админом"
+    INFO_ADMIN_REGS = "🗂 Админские регламенты"
+    BACK_TO_MENU = "⬅️ Назад"
+    PROFILE_EDIT_NICK = "✏️ Ник"
+    PROFILE_EDIT_GROUP = "✏️ Группа"
+    PROFILE_EDIT_BIRTH = "✏️ Дата рождения"
+    PROFILE_EDIT_ABOUT = "✏️ О себе"
+    PROFILE_DELETE = "🗑 Удалить аккаунт"
+    PROFILE_DELETE_YES = "🗑 Да, удалить всё"
+    PROFILE_DELETE_NO = "Оставить как есть"
+    SKIP = "⏭ Пропустить"
+    ADMIN_PANEL_USERS = "👤 Манипуляция с пользователем"
+    ADMIN_PANEL_CRUD = "🗄 CRUD"
+    ADMIN_PANEL_SCENARIOS = "🧩 Разработка сценариев"
+    ADMIN_PANEL_LOGS = "📜 Логи"
+    ADMIN_PANEL_UPDATES = "📢 Обновления"
+    ADMIN_PANEL_USER_MODE = "⬅️ Режим пользователя"
     ACT_COMPLETE = "✅ Завершить"
     ACT_CANCEL_ACT = "🚫 Отменить"
     CALL_CLAIM = "🙋 Возьмусь"
@@ -67,7 +91,62 @@ ABOUT_DEFAULT = (
     "Мы — студенческое сообщество «Истинный Курс».\n"
     "Админы ещё не заполнили этот раздел — загляните позже."
 )
+_EMPTY_SLOT_DEFAULT = "Админы ещё не заполнили этот раздел — загляните позже."
+RULES_DEFAULT = _EMPTY_SLOT_DEFAULT
+DOCS_DEFAULT = _EMPTY_SLOT_DEFAULT
+UPDATES_DEFAULT = "Обновлений пока не было."
+BECOME_ORG_DEFAULT = _EMPTY_SLOT_DEFAULT
+BECOME_ADMIN_DEFAULT = _EMPTY_SLOT_DEFAULT
+ADMIN_REGS_DEFAULT = _EMPTY_SLOT_DEFAULT
 START_REGISTERED = "С возвращением, {name}!\nВаша роль: {role}."
+
+# --- Меню «Информация» ---
+INFO_PICK = "ℹ️ Что показать? Выберите раздел в меню внизу."
+INFO_NO_ACCESS = "Этот раздел только для суперадминов."
+BACK_TO_MENU_DONE = "Главное меню:"
+
+# --- Мой профиль ---
+PROFILE_CARD = (
+    "👤 <b>Ваш профиль</b>\n\n"
+    "Ник: <b>{nick}</b>\n"
+    "Telegram: {username} · id <code>{tg_id}</code>\n"
+    "Вуз: {university}\n"
+    "Группа: {group}\n"
+    "Дата рождения: {birth}\n"
+    "О себе: {about}\n"
+    "Роль: {role}\n"
+    "В сообществе с: {since}\n\n"
+    "Кнопками ниже можно изменить данные или удалить аккаунт."
+)
+PROFILE_EMPTY_FIELD = "—"
+PROFILE_NO_UNI = "не учусь в вузе СПб"
+PROFILE_EDIT_NICK_PROMPT = "Введите новый ник ({min}–{max} символов):"
+PROFILE_EDIT_GROUP_PROMPT = "Введите учебную группу (до {max} символов):"
+PROFILE_EDIT_BIRTH_PROMPT = "Введите дату рождения в формате ДД.ММ.ГГГГ:"
+PROFILE_EDIT_ABOUT_PROMPT = "Расскажите о себе ({min}–{max} символов):"
+PROFILE_UPDATED = "✅ Сохранено."
+PROFILE_DELETE_CONFIRM = (
+    "⚠️ <b>Удалить аккаунт?</b>\n\n"
+    "Будут стёрты: профиль, ваши заявки и анкеты; ваши активные мероприятия "
+    "отменятся и пропадут из Афиши; вы будете исключены из группы сообщества.\n"
+    "Это действие необратимо. После удаления можно зарегистрироваться заново."
+)
+PROFILE_DELETED = (
+    "Аккаунт удалён. Спасибо, что были с нами!\n"
+    "Захотите вернуться — просто зарегистрируйтесь заново."
+)
+
+# --- Репорт кнопкой ---
+REPORT_PROMPT = (
+    "🐞 Опишите одним сообщением, что случилось (жалоба на админа, баг, идея) — "
+    "{min}–{max} символов. Сообщение уйдёт админам."
+)
+REPORT_INVALID = "Сообщение — от {min} до {max} символов. Попробуйте ещё раз:"
+
+# --- Режим «Админство» (суперадмины и владелец) ---
+ADMIN_MODE_ON = "🛠 Режим админства. Команды бота работают как обычно, меню — ниже."
+ADMIN_MODE_OFF = "Режим пользователя."
+ADMIN_PANEL_WIP = "🚧 Этот раздел появится в следующем обновлении бота."
 
 # --- Редактор контента (/content, для админов) ---
 CONTENT_PICK = "Что редактируем?"
@@ -323,19 +402,33 @@ ACT_DESC_PROMPT = (
     "Это описание увидят все в Афише."
 )
 ACT_DESC_INVALID = "Описание — от {min} до {max} символов. Попробуйте ещё раз:"
-ACT_URL_PROMPT = (
-    "Если есть ссылка (чат мероприятия, пост, регистрация) — пришлите её.\n"
-    "Если нет — нажмите «{skip}»."
+ACT_ORGANIZERS_PROMPT = (
+    "Кто организаторы? Перечислите их со ссылками на Telegram (@ники) одним "
+    "сообщением, до {max} символов. Если вы одни — нажмите «{skip}»."
 )
+ACT_ORGANIZERS_INVALID = "Слишком длинно (до {max} символов). Пришлите короче или «{skip}»."
+ACT_PLAN_PROMPT = (
+    "Ссылка на план реализации (Google Doc или что-то другое). "
+    "Если плана нет — «{skip}»."
+)
+ACT_CHAT_PROMPT = "Ссылка на беседу (чат) мероприятия. Если её нет — «{skip}»."
 ACT_URL_INVALID = "Ссылка слишком длинная (до {max} символов). Пришлите короче или «{skip}»."
+ACT_COMMENT_PROMPT = (
+    "Дополнительный комментарий для админов (до {max} символов) — по желанию. "
+    "Нечего добавить — «{skip}»."
+)
+ACT_COMMENT_INVALID = "Комментарий — до {max} символов. Пришлите короче или «{skip}»."
 ACT_CONFIRM = (
     "Проверьте заявку:\n\n"
     "📅 <b>{title}</b>\n\n"
     "{description}\n"
-    "{url_line}\n"
+    "{details}\n"
     "Отправляем админам?"
 )
-ACT_URL_LINE = "🔗 {url}\n"
+ACT_ORGANIZERS_LINE = "👥 Организаторы: {organizers}\n"
+ACT_PLAN_LINE = "🗒 План: {url}\n"
+ACT_CHAT_LINE = "💬 Беседа: {url}\n"
+ACT_COMMENT_LINE = "💬 Комментарий админам: {comment}\n"
 ACT_SENT = "✅ Заявка отправлена админам. Когда решат — напишу."
 ACT_CANCELLED = "Заявка отменена."
 ACT_CARD = (
@@ -343,7 +436,7 @@ ACT_CARD = (
     "От: {name} ({username})\n\n"
     "<b>{title}</b>\n\n"
     "{description}\n"
-    "{url_line}"
+    "{details}"
 )
 ACT_APPROVED_NOTE = "✅ Одобрено — {admin}"
 ACT_REJECTED_NOTE = "❌ Отклонено — {admin}"
@@ -356,8 +449,9 @@ ACT_REJECTED_DM = "К сожалению, заявка на мероприяти
 NOTE_AFISHA_FAILED = "⚠️ Не удалось опубликовать карточку в Афишу (проверьте права бота в группе)."
 
 # Карточка в топике «Афиша». {status_line} — пусто у активного,
-# у завершённого/отменённого — строка-пометка сверху.
-AFISHA_CARD = "{status_line}📅 <b>{title}</b>\n\n{description}\n{url_line}\n👤 Организатор: {organizer}"
+# у завершённого/отменённого — строка-пометка сверху. {details} — организаторы
+# и ссылки (план/беседа), если указаны.
+AFISHA_CARD = "{status_line}📅 <b>{title}</b>\n\n{description}\n{details}\n👤 Подал(а): {organizer}"
 AFISHA_DONE_LINE = "✅ <b>Прошло</b>\n\n"
 AFISHA_CANCELLED_LINE = "🚫 <b>Отменено</b>\n\n"
 
