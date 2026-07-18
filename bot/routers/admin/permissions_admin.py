@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot import texts
 from bot.db.models import User
 from bot.db.repositories import permission_repo, user_repo
+from bot.enums import role_rank
 from bot.filters.role_filter import IsAdmin
 from bot.keyboards.callback_data import (
     GroupDeleteCB,
@@ -67,7 +68,7 @@ async def _person_view(session: AsyncSession, target: User):
         role=role,
         group=escape(group_label),
     )
-    if target.current_role.value == "admin":
+    if role_rank(target.current_role) > 0:
         text += texts.PERM_PERSON_IS_ADMIN_NOTE
     groups = await permission_repo.list_all(session)
     personal = permission_service.personal_modules(target)

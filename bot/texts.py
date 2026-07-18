@@ -50,6 +50,8 @@ ROLE_LABELS = {
     UserRole.USER: "Пользователь",
     UserRole.ORGANIZER: "Организатор",
     UserRole.ADMIN: "Админ",
+    UserRole.SUPERADMIN: "Суперадмин",
+    UserRole.OWNER: "Владелец",
     UserRole.CUSTOM: "Кастомная роль",
     UserRole.BANNED: "Забанен",
 }
@@ -300,10 +302,13 @@ SETROLE_UNKNOWN = "Неизвестная роль. Доступные: {roles}"
 SETROLE_DONE = "✅ Роль {name} изменена на {role}."
 
 # --- Ошибки смены ролей (возвращаются сервисом) ---
-ROLE_NOT_ASSIGNABLE = "Эту роль нельзя назначить напрямую. Для бана используйте /ban."
+ROLE_NOT_ASSIGNABLE = "Вам недоступно назначение этой роли. Для бана используйте /ban."
+ROLE_NO_RIGHTS = "Назначать роли могут только суперадмины и владелец."
+ROLE_TARGET_PROTECTED = "Нельзя менять роль человеку вашего уровня или выше."
 ROLE_TARGET_BANNED = "Пользователь забанен — сначала снимите бан (/unban)."
 ROLE_ALREADY_SET = "У пользователя уже роль {role}."
 BAN_ALREADY = "Пользователь уже забанен."
+BAN_TARGET_PROTECTED = "Нельзя забанить админа вашего уровня или выше."
 UNBAN_NOT_BANNED = "Пользователь не забанен."
 
 # --- Заявка на мероприятие ---

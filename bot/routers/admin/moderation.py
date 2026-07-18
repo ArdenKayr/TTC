@@ -7,7 +7,7 @@ from bot import texts
 from bot.db.models import User
 from bot.db.repositories import user_repo
 from bot.enums import PermissionModule, UserRole
-from bot.filters.role_filter import HasPerm, IsAdmin
+from bot.filters.role_filter import HasPerm, IsSuperadmin
 from bot.services import role_service
 
 router = Router(name="admin_moderation")
@@ -63,13 +63,14 @@ async def cmd_unban(
     )
 
 
-# Роли (включая назначение полных админов) — только полный админ.
-@router.message(Command("setrole"), IsAdmin())
+# Роли: суперадмин назначает до админа, владелец — до суперадмина,
+# простые админы роли не раздают (иерархия проверяется и в сервисе).
+@router.message(Command("setrole"), IsSuperadmin())
 async def cmd_setrole(
     message: Message, command: CommandObject, session: AsyncSession, db_user: User
 ) -> None:
     args = (command.args or "").split()
-    valid_roles = ", ".join(r.value for r in role_service.ASSIGNABLE_ROLES)
+    valid_roles = ", ".join(sorted(r.value for r in role_service.assignable_roles(db_user)))
     if len(args) != 2:
         await message.answer(texts.SETROLE_USAGE.format(roles=valid_roles))
         return

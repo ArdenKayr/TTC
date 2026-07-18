@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.db.models import PermissionGroup, User
 from bot.db.repositories import audit_repo, permission_repo
-from bot.enums import AuditAction, PermissionModule, UserRole
+from bot.enums import FULL_ADMIN_ROLES, AuditAction, PermissionModule, UserRole
 
 
 @dataclass(frozen=True)
@@ -50,7 +50,7 @@ def personal_modules(user: User) -> set[str]:
 
 async def effective_modules(session: AsyncSession, user: User) -> set[str]:
     """Итоговые модули человека: полный админ — все; иначе группа + личные."""
-    if user.current_role == UserRole.ADMIN:
+    if user.current_role in FULL_ADMIN_ROLES:
         return set(MODULES)
     modules = personal_modules(user)
     if user.permission_group_id is not None:
@@ -65,7 +65,7 @@ async def has_permission(
 ) -> bool:
     if user is None or user.current_role == UserRole.BANNED:
         return False
-    if user.current_role == UserRole.ADMIN:
+    if user.current_role in FULL_ADMIN_ROLES:
         return True
     return module.value in await effective_modules(session, user)
 

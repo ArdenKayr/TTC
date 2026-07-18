@@ -9,7 +9,7 @@ from aiogram.types import Message
 from bot import texts
 from bot.config import settings
 from bot.db.models import User
-from bot.enums import UserRole
+from bot.enums import FULL_ADMIN_ROLES
 from bot.keyboards.common_kb import admin_call_kb
 from bot.routers.group.admin_chat import SERVICE_MESSAGE
 from bot.services import notification_service
@@ -63,7 +63,7 @@ async def group_message(message: Message, db_user: User | None) -> None:
         return
 
     read_only_topics = {settings.topic_announcements_id, settings.topic_afisha_id} - {None}
-    is_admin = db_user is not None and db_user.current_role == UserRole.ADMIN
+    is_admin = db_user is not None and db_user.current_role in FULL_ADMIN_ROLES
     if message.message_thread_id in read_only_topics and not is_admin:
         try:
             await message.delete()

@@ -5,8 +5,21 @@ class UserRole(str, Enum):
     USER = "user"
     ORGANIZER = "organizer"
     ADMIN = "admin"
+    SUPERADMIN = "superadmin"
+    OWNER = "owner"
     CUSTOM = "custom"
     BANNED = "banned"
+
+
+# Роли с полными правами на повседневные модули (заявки, контент, модерация…).
+FULL_ADMIN_ROLES = {UserRole.ADMIN, UserRole.SUPERADMIN, UserRole.OWNER}
+
+# Ранг в иерархии назначений: выше — главнее. Не-админские роли — ранг 0.
+ROLE_RANK = {UserRole.ADMIN: 1, UserRole.SUPERADMIN: 2, UserRole.OWNER: 3}
+
+
+def role_rank(role: UserRole) -> int:
+    return ROLE_RANK.get(role, 0)
 
 
 class RequestStatus(str, Enum):
