@@ -23,6 +23,7 @@ from bot.routers.group.admin_chat import router as admin_chat_router
 from bot.routers.group.topic_guards import router as topic_guards_router
 from bot.routers.profile import router as profile_router
 from bot.routers.registration import router as registration_router
+from bot.routers.superadmin import router as superadmin_router
 from bot.routers.user_menu import router as user_menu_router
 
 logging.basicConfig(level=logging.INFO)
@@ -61,6 +62,7 @@ async def main() -> None:
         content_admin_router,
         registration_router,
         activities_router,
+        superadmin_router,
         user_menu_router,
         profile_router,
         admin_chat_router,

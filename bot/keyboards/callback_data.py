@@ -99,6 +99,11 @@ class ActLifecycleCB(CallbackData, prefix="actlife"):
     activity_id: str
 
 
+class SuperUserCB(CallbackData, prefix="suser"):
+    action: str  # custom | make_admin | remove_admin | ban
+    tg_id: int
+
+
 class ProfileEditCB(CallbackData, prefix="profedit"):
     field: str  # nick | group | birth | about
 

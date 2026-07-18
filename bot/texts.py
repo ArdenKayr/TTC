@@ -40,6 +40,10 @@ class BTN:
     ADMIN_PANEL_LOGS = "📜 Логи"
     ADMIN_PANEL_UPDATES = "📢 Обновления"
     ADMIN_PANEL_USER_MODE = "⬅️ Режим пользователя"
+    SUPER_CUSTOM = "⚙️ Кастомить права"
+    SUPER_MAKE_ADMIN = "🛡 Сделать админом"
+    SUPER_REMOVE_ADMIN = "⬇️ Снять админство"
+    SUPER_BAN = "🔨 Забанить"
     ACT_COMPLETE = "✅ Завершить"
     ACT_CANCEL_ACT = "🚫 Отменить"
     CALL_CLAIM = "🙋 Возьмусь"
@@ -147,6 +151,14 @@ REPORT_INVALID = "Сообщение — от {min} до {max} символов.
 ADMIN_MODE_ON = "🛠 Режим админства. Команды бота работают как обычно, меню — ниже."
 ADMIN_MODE_OFF = "Режим пользователя."
 ADMIN_PANEL_WIP = "🚧 Этот раздел появится в следующем обновлении бота."
+SUPER_USER_PROMPT = "Пришлите tg_id или @username пользователя (он должен быть зарегистрирован):"
+SUPER_USER_CARD = (
+    "👤 <b>{name}</b> · {username} · id <code>{tg_id}</code>\n"
+    "Роль: <b>{role}</b>\n\n"
+    "Что сделать с этим пользователем?"
+)
+SUPER_NOT_ADMIN = "Этот человек и так не админ."
+SUPER_DONE = "Готово"
 
 # --- Редактор контента (/content, для админов) ---
 CONTENT_PICK = "Что редактируем?"

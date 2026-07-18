@@ -147,12 +147,13 @@ async def admin_mode_off(message: Message, db_user: User | None) -> None:
     await message.answer(texts.ADMIN_MODE_OFF, reply_markup=main_menu_kb(db_user))
 
 
+# «Манипуляция с пользователем» живёт в routers/superadmin.py;
+# остальные кнопки панели — заглушки до блоков C/D.
 @router.message(
     _PRIVATE,
     StateFilter(None),
     F.text.in_(
         {
-            texts.BTN.ADMIN_PANEL_USERS,
             texts.BTN.ADMIN_PANEL_CRUD,
             texts.BTN.ADMIN_PANEL_SCENARIOS,
             texts.BTN.ADMIN_PANEL_LOGS,
