@@ -31,48 +31,61 @@ def main_menu_kb(user: User | None) -> ReplyKeyboardMarkup:
                 [KeyboardButton(text=texts.BTN.START_ABOUT)],
             ]
         )
-    rows = [
-        [KeyboardButton(text=texts.BTN.INFO), KeyboardButton(text=texts.BTN.PROFILE)],
-        [KeyboardButton(text=texts.BTN.ACT_NEW)],
-        [KeyboardButton(text=texts.BTN.VOTE_NEW)],
-        [KeyboardButton(text=texts.BTN.REPORT)],
-    ]
+    # Компактно: по две кнопки в ряд, всё меню видно без пролистывания.
+    third_row = [KeyboardButton(text=texts.BTN.REPORT)]
     if user.current_role in _SUPER_ROLES:
-        rows.append([KeyboardButton(text=texts.BTN.ADMIN_MODE)])
-    return _reply(rows)
+        third_row.append(KeyboardButton(text=texts.BTN.ADMIN_MODE))
+    return _reply(
+        [
+            [KeyboardButton(text=texts.BTN.INFO), KeyboardButton(text=texts.BTN.PROFILE)],
+            [KeyboardButton(text=texts.BTN.ACT_NEW), KeyboardButton(text=texts.BTN.VOTE_NEW)],
+            third_row,
+        ]
+    )
 
 
 def info_menu_kb(is_superadmin: bool) -> ReplyKeyboardMarkup:
     """Подменю «Информация»: каждая кнопка — редактируемый блок контента."""
-    rows = [
-        [KeyboardButton(text=texts.BTN.START_ABOUT), KeyboardButton(text=texts.BTN.INFO_RULES)],
-        [KeyboardButton(text=texts.BTN.INFO_DOCS), KeyboardButton(text=texts.BTN.INFO_UPDATES)],
-        [
-            KeyboardButton(text=texts.BTN.INFO_BECOME_ORG),
-            KeyboardButton(text=texts.BTN.INFO_BECOME_ADMIN),
-        ],
-    ]
+    last_row = [KeyboardButton(text=texts.BTN.BACK_TO_MENU)]
     if is_superadmin:
-        rows.append([KeyboardButton(text=texts.BTN.INFO_ADMIN_REGS)])
-    rows.append([KeyboardButton(text=texts.BTN.BACK_TO_MENU)])
-    return _reply(rows)
+        last_row.insert(0, KeyboardButton(text=texts.BTN.INFO_ADMIN_REGS))
+    return _reply(
+        [
+            [KeyboardButton(text=texts.BTN.START_ABOUT), KeyboardButton(text=texts.BTN.INFO_RULES)],
+            [KeyboardButton(text=texts.BTN.INFO_DOCS), KeyboardButton(text=texts.BTN.INFO_UPDATES)],
+            [
+                KeyboardButton(text=texts.BTN.INFO_BECOME_ORG),
+                KeyboardButton(text=texts.BTN.INFO_BECOME_ADMIN),
+            ],
+            last_row,
+        ]
+    )
 
 
 def admin_panel_kb(is_owner: bool) -> ReplyKeyboardMarkup:
     """Меню режима «Админство» (суперадмины; у владельца кнопок больше)."""
     rows = [
-        [KeyboardButton(text=texts.BTN.ADMIN_PANEL_USERS)],
-        [KeyboardButton(text=texts.BTN.ADMIN_PANEL_CRUD)],
-        [KeyboardButton(text=texts.BTN.ADMIN_PANEL_SCENARIOS)],
+        [
+            KeyboardButton(text=texts.BTN.ADMIN_PANEL_USERS),
+            KeyboardButton(text=texts.BTN.ADMIN_PANEL_CRUD),
+        ]
     ]
     if is_owner:
         rows.append(
             [
+                KeyboardButton(text=texts.BTN.ADMIN_PANEL_SCENARIOS),
                 KeyboardButton(text=texts.BTN.ADMIN_PANEL_LOGS),
                 KeyboardButton(text=texts.BTN.ADMIN_PANEL_UPDATES),
             ]
         )
-    rows.append([KeyboardButton(text=texts.BTN.ADMIN_PANEL_USER_MODE)])
+        rows.append([KeyboardButton(text=texts.BTN.ADMIN_PANEL_USER_MODE)])
+    else:
+        rows.append(
+            [
+                KeyboardButton(text=texts.BTN.ADMIN_PANEL_SCENARIOS),
+                KeyboardButton(text=texts.BTN.ADMIN_PANEL_USER_MODE),
+            ]
+        )
     return _reply(rows)
 
 
