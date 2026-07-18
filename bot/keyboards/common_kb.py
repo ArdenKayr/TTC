@@ -12,6 +12,23 @@ from bot.keyboards.callback_data import AdminCallCB
 
 _SUPER_ROLES = (UserRole.SUPERADMIN, UserRole.OWNER)
 
+# Тексты всех реплай-кнопок меню: FSM-формы игнорируют их как «значение»
+# (нажатие кнопки меню посреди ввода отменяет форму, а не сохраняется).
+MENU_BUTTON_TEXTS = {
+    texts.BTN.INFO,
+    texts.BTN.PROFILE,
+    texts.BTN.REPORT,
+    texts.BTN.ACT_NEW,
+    texts.BTN.VOTE_NEW,
+    texts.BTN.ADMIN_MODE,
+    texts.BTN.ADMIN_PANEL_USERS,
+    texts.BTN.ADMIN_PANEL_CRUD,
+    texts.BTN.ADMIN_PANEL_SCENARIOS,
+    texts.BTN.ADMIN_PANEL_LOGS,
+    texts.BTN.ADMIN_PANEL_UPDATES,
+    texts.BTN.ADMIN_PANEL_USER_MODE,
+}
+
 
 def _reply(rows: list[list[KeyboardButton]]) -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(

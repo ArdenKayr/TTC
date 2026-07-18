@@ -22,6 +22,7 @@ from bot import texts
 from bot.db.models import User
 from bot.filters.role_filter import IsSuperadmin
 from bot.keyboards.callback_data import ScenActionCB, ScenGroupCB, ScenKeyCB
+from bot.keyboards.common_kb import MENU_BUTTON_TEXTS as _MENU_BUTTONS
 from bot.routers.common import send_start_screen
 from bot.services import content_service, scenario_service
 from bot.states.content_states import ScenarioEditForm
@@ -31,23 +32,6 @@ router.message.filter(IsSuperadmin())
 router.callback_query.filter(IsSuperadmin())
 
 _PRIVATE = F.chat.type == ChatType.PRIVATE
-
-# Кнопки меню, которые не должны сохраняться как текст сценария,
-# если их нажали посреди редактирования.
-_MENU_BUTTONS = {
-    texts.BTN.ADMIN_PANEL_USERS,
-    texts.BTN.ADMIN_PANEL_CRUD,
-    texts.BTN.ADMIN_PANEL_SCENARIOS,
-    texts.BTN.ADMIN_PANEL_LOGS,
-    texts.BTN.ADMIN_PANEL_UPDATES,
-    texts.BTN.ADMIN_PANEL_USER_MODE,
-    texts.BTN.INFO,
-    texts.BTN.PROFILE,
-    texts.BTN.REPORT,
-    texts.BTN.ACT_NEW,
-    texts.BTN.VOTE_NEW,
-    texts.BTN.ADMIN_MODE,
-}
 
 
 def _groups_kb() -> InlineKeyboardMarkup:

@@ -80,3 +80,4 @@ class AuditAction(str, Enum):
     CRUD_CREATED = "crud_created"
     CRUD_UPDATED = "crud_updated"
     CRUD_DELETED = "crud_deleted"
+    UPDATE_PUBLISHED = "update_published"

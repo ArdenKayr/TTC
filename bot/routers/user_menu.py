@@ -148,18 +148,4 @@ async def admin_mode_off(message: Message, db_user: User | None) -> None:
 
 
 # «Пользователи» — routers/superadmin.py; «CRUD» — admin/crud_admin.py;
-# «Сценарии» — admin/scenario_admin.py. Заглушки — только до блока D.
-@router.message(
-    _PRIVATE,
-    StateFilter(None),
-    F.text.in_(
-        {
-            texts.BTN.ADMIN_PANEL_LOGS,
-            texts.BTN.ADMIN_PANEL_UPDATES,
-        }
-    ),
-)
-async def admin_panel_wip(message: Message, db_user: User | None) -> None:
-    if not _is_super(db_user):
-        return
-    await message.answer(texts.ADMIN_PANEL_WIP)
+# «Сценарии» — admin/scenario_admin.py; «Логи» и «Обновления» — admin/owner_panel.py.

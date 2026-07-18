@@ -174,3 +174,12 @@ class CrudNewCB(CallbackData, prefix="crnew"):
 
 class CrudCancelCB(CallbackData, prefix="crcancel"):
     pass
+
+
+class LogCB(CallbackData, prefix="olog"):
+    cat: str  # ключ категории из owner_panel.LOG_CATS; "home" = назад к темам
+    days: int = -1  # -1 = ещё не выбран период; 0 = всё время
+
+
+class UpdatePostCB(CallbackData, prefix="oupd"):
+    action: str  # send | cancel

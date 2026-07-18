@@ -12,3 +12,8 @@ class ScenarioEditForm(StatesGroup):
 class CrudForm(StatesGroup):
     value = State()  # ввод нового значения поля (data: t, pk, i, page)
     create = State()  # последовательный ввод полей новой записи (data: t, idx, values)
+
+
+class UpdatePostForm(StatesGroup):
+    waiting = State()  # ожидание текста/файла обновления
+    confirm = State()  # подтверждение рассылки (data: text, file_id, file_type)

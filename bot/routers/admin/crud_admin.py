@@ -34,6 +34,7 @@ from bot.keyboards.callback_data import (
     CrudTableCB,
     NoopCB,
 )
+from bot.keyboards.common_kb import MENU_BUTTON_TEXTS as _MENU_BUTTONS
 from bot.routers.common import send_start_screen
 from bot.services import crud_service
 from bot.states.content_states import CrudForm
@@ -43,21 +44,6 @@ router.message.filter(IsSuperadmin())
 router.callback_query.filter(IsSuperadmin())
 
 _PRIVATE = F.chat.type == ChatType.PRIVATE
-
-_MENU_BUTTONS = {
-    texts.BTN.ADMIN_PANEL_USERS,
-    texts.BTN.ADMIN_PANEL_CRUD,
-    texts.BTN.ADMIN_PANEL_SCENARIOS,
-    texts.BTN.ADMIN_PANEL_LOGS,
-    texts.BTN.ADMIN_PANEL_UPDATES,
-    texts.BTN.ADMIN_PANEL_USER_MODE,
-    texts.BTN.INFO,
-    texts.BTN.PROFILE,
-    texts.BTN.REPORT,
-    texts.BTN.ACT_NEW,
-    texts.BTN.VOTE_NEW,
-    texts.BTN.ADMIN_MODE,
-}
 
 
 def _tables_kb(user: User) -> InlineKeyboardMarkup:

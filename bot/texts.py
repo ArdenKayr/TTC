@@ -76,6 +76,12 @@ class BTN:
     PERM_CANCEL = "🚫 Отмена"
     SCEN_RESET = "↩️ Сбросить к стандартному"
     SCEN_BACK = "⬅️ К списку"
+    LOGS_DAY = "За сутки"
+    LOGS_WEEK = "За неделю"
+    LOGS_MONTH = "За месяц"
+    LOGS_ALL = "За всё время"
+    LOGS_BACK = "⬅️ Темы"
+    UPD_SEND = "📢 Разослать всем"
     CRUD_CREATE = "➕ Создать запись"
     CRUD_DELETE = "🗑 Удалить"
     CRUD_DELETE_YES = "🗑 Да, удалить"
@@ -585,6 +591,67 @@ CRUD_USERS_GUARD = (
     "в CRUD таблица users у них только на чтение."
 )
 CRUD_CANCELLED = "Отменено."
+
+# --- Логи (панель владельца) ---
+LOGS_PICK_CAT = "📜 <b>Логи</b>\nЧто смотрим?"
+LOGS_PICK_PERIOD = "Тема «{cat}». За какой период?"
+LOGS_HEADER = "📜 <b>{cat}</b> — {period}. Записей: {total}{suffix}\n\n"
+LOGS_SHOWN_SUFFIX = " (показаны последние {shown})"
+LOGS_EMPTY = "📜 {cat} — {period}: записей нет."
+LOGS_ERR_FOOTER = "\n\nПолные записи с трейсбеками — CRUD → «Логи ошибок»."
+LOGS_ACTOR_SYSTEM = "система"
+
+# Человеческие названия действий аудита (неизвестные показываются как есть).
+AUDIT_ACTION_LABELS = {
+    "registration_approved": "регистрация одобрена",
+    "registration_rejected": "регистрация отклонена",
+    "user_banned": "бан",
+    "user_unbanned": "разбан",
+    "role_changed": "смена роли",
+    "university_added": "вуз добавлен",
+    "university_request_approved": "заявка на вуз одобрена",
+    "university_request_rejected": "заявка на вуз отклонена",
+    "university_request_edited": "заявка на вуз исправлена",
+    "alias_approved": "вариант поиска одобрен",
+    "alias_rejected": "вариант поиска отклонён",
+    "alias_edited": "вариант поиска исправлен",
+    "content_updated": "контент изменён",
+    "perm_group_created": "группа прав создана",
+    "perm_group_updated": "группа прав изменена",
+    "perm_group_deleted": "группа прав удалена",
+    "user_permissions_changed": "права человека изменены",
+    "activity_approved": "мероприятие одобрено",
+    "activity_rejected": "мероприятие отклонено",
+    "activity_completed": "мероприятие завершено",
+    "activity_cancelled": "мероприятие отменено",
+    "vote_approved": "голосование опубликовано",
+    "vote_rejected": "голосование отклонено",
+    "organizer_promoted": "выдана роль организатора",
+    "organizer_demoted": "снята роль организатора",
+    "profile_updated": "профиль изменён",
+    "account_deleted": "аккаунт удалён",
+    "crud_created": "CRUD: запись создана",
+    "crud_updated": "CRUD: запись изменена",
+    "crud_deleted": "CRUD: запись удалена",
+    "update_published": "обновление разослано",
+}
+
+# --- Обновления (панель владельца) ---
+UPD_PROMPT = (
+    "📢 <b>Обновление</b>\n"
+    "Пришлите текст (или фото/документ с подписью). Оно уйдёт в личку всем "
+    "зарегистрированным и появится сверху раздела «Информация → Обновления»."
+)
+UPD_PREVIEW = "Вот что получат пользователи:"
+UPD_CONFIRM = "Рассылаем?"
+UPD_EMPTY_TEXT = "📢 Новое обновление!"
+UPD_ENTRY_HEADER = "📢 <b>Обновление от {date}</b>\n\n"
+UPD_ARCHIVE_SEP = "\n\n— — —\n\n"
+UPD_DONE = (
+    "✅ Обновление опубликовано: доставлено {delivered} из {total} пользователям, "
+    "добавлено в раздел «Обновления»."
+)
+UPD_CANCELLED = "Отменено."
 
 # --- Карточка ошибки владельцу ---
 ERROR_OWNER_DM = (
