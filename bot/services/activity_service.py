@@ -71,7 +71,14 @@ def build_act_card(author: User, request: ActivityRequest) -> str:
     )
 
 
-def build_vote_card(author: User, question: str, options: list[str]) -> str:
+def anonymity_line(is_anonymous: bool) -> str:
+    """Как показывать тип опроса человеку и админам."""
+    return texts.VOTE_ANON_LINE_YES if is_anonymous else texts.VOTE_ANON_LINE_NO
+
+
+def build_vote_card(
+    author: User, question: str, options: list[str], is_anonymous: bool
+) -> str:
     username = f"@{author.username}" if author.username else f"id {author.tg_id}"
     rows = "\n".join(texts.VOTE_OPTION_ROW.format(option=escape(option)) for option in options)
     return texts.VOTE_CARD.format(
@@ -79,6 +86,7 @@ def build_vote_card(author: User, question: str, options: list[str]) -> str:
         username=escape(username),
         question=escape(question),
         options=rows,
+        anon=anonymity_line(is_anonymous),
     )
 
 
@@ -217,7 +225,7 @@ async def approve_vote(
 
     notes = [texts.VOTE_APPROVED_NOTE.format(admin=admin.display_name)]
     poll_message_id = await notification_service.send_vote_poll(
-        bot, request.question, list(request.options)
+        bot, request.question, list(request.options), request.is_anonymous
     )
     if poll_message_id is None:
         notes.append(texts.NOTE_POLL_FAILED)

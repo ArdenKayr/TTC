@@ -25,6 +25,17 @@ def skip_step_kb() -> ReplyKeyboardMarkup:
     return _reply([[KeyboardButton(text=texts.BTN.SKIP)], _CANCEL_ROW])
 
 
+def vote_anonymity_kb() -> ReplyKeyboardMarkup:
+    """Шаг выбора типа опроса: анонимный или с видимыми голосами."""
+    return _reply(
+        [
+            [KeyboardButton(text=texts.BTN.VOTE_ANON_YES)],
+            [KeyboardButton(text=texts.BTN.VOTE_ANON_NO)],
+            _CANCEL_ROW,
+        ]
+    )
+
+
 def confirm_kb() -> ReplyKeyboardMarkup:
     """Подтверждение заявки (те же кнопки, что в анкете регистрации)."""
     return _reply(

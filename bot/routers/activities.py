@@ -20,6 +20,7 @@ from bot.keyboards.activity_kb import (
     confirm_kb,
     form_cancel_kb,
     skip_step_kb,
+    vote_anonymity_kb,
     vote_review_kb,
 )
 from bot.keyboards.common_kb import main_menu_kb
@@ -270,7 +271,13 @@ async def _vote_show_confirm(message: Message, state: FSMContext) -> None:
     )
     await state.set_state(VoteForm.confirm)
     await message.answer(
-        texts.VOTE_CONFIRM.format(question=escape(data["question"]), options=rows),
+        texts.VOTE_CONFIRM.format(
+            question=escape(data["question"]),
+            options=rows,
+            # .get: анкета могла начаться до появления шага (черновики живут в Redis
+            # и переживают перезапуск) — считаем такой опрос анонимным, как раньше.
+            anon=activity_service.anonymity_line(data.get("is_anonymous", True)),
+        ),
         reply_markup=confirm_kb(),
     )
 
@@ -288,7 +295,21 @@ async def vote_options(message: Message, state: FSMContext) -> None:
         )
         return
     await state.update_data(options=options)
+    await state.set_state(VoteForm.anonymity)
+    await message.answer(texts.VOTE_ANON_PROMPT, reply_markup=vote_anonymity_kb())
+
+
+@router.message(
+    VoteForm.anonymity, F.text.in_({texts.BTN.VOTE_ANON_YES, texts.BTN.VOTE_ANON_NO})
+)
+async def vote_anonymity(message: Message, state: FSMContext) -> None:
+    await state.update_data(is_anonymous=message.text == texts.BTN.VOTE_ANON_YES)
     await _vote_show_confirm(message, state)
+
+
+@router.message(VoteForm.anonymity, F.text, ~F.text.startswith("/"))
+async def vote_anonymity_other(message: Message) -> None:
+    await message.answer(texts.VOTE_ANON_USE_BUTTONS)
 
 
 @router.message(VoteForm.confirm, F.text == texts.BTN.REG_SUBMIT)
@@ -297,12 +318,19 @@ async def vote_submit(
 ) -> None:
     data = await state.get_data()
     await state.clear()
-    request = VoteRequest(tg_id=db_user.tg_id, question=data["question"], options=data["options"])
+    request = VoteRequest(
+        tg_id=db_user.tg_id,
+        question=data["question"],
+        options=data["options"],
+        is_anonymous=data.get("is_anonymous", True),
+    )
     session.add(request)
     await session.commit()
     await notification_service.send_admin_card(
         message.bot,
-        activity_service.build_vote_card(db_user, request.question, list(request.options)),
+        activity_service.build_vote_card(
+            db_user, request.question, list(request.options), request.is_anonymous
+        ),
         vote_review_kb(str(request.request_id)),
     )
     await scenario_service.reply(message, session, "vote_sent", main_menu_kb(db_user))

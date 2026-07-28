@@ -66,7 +66,9 @@ async def edit_afisha_card(bot: Bot, message_id: int, text: str) -> bool:
         return False
 
 
-async def send_vote_poll(bot: Bot, question: str, options: list[str]) -> int | None:
+async def send_vote_poll(
+    bot: Bot, question: str, options: list[str], is_anonymous: bool = True
+) -> int | None:
     """Опрос в топик «Голосования». Возвращает message_id или None."""
     if settings.group_chat_id is None:
         return None
@@ -75,7 +77,7 @@ async def send_vote_poll(bot: Bot, question: str, options: list[str]) -> int | N
             settings.group_chat_id,
             question,
             options,
-            is_anonymous=True,
+            is_anonymous=is_anonymous,
             message_thread_id=settings.topic_voting_id,
         )
         return message.message_id

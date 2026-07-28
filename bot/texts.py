@@ -80,6 +80,8 @@ class BTN:
     LOGS_WEEK = "За неделю"
     LOGS_MONTH = "За месяц"
     LOGS_ALL = "За всё время"
+    VOTE_ANON_YES = "🕶 Анонимное"
+    VOTE_ANON_NO = "👀 Видно, кто голосовал"
     LOGS_BACK = "⬅️ Темы"
     UPD_SEND = "📢 Разослать всем"
     CRUD_CREATE = "➕ Создать запись"
@@ -522,14 +524,26 @@ VOTE_OPTIONS_INVALID = (
     "Нужно от {min} до {max} вариантов, каждый с новой строки и до {opt_max} символов. "
     "Попробуйте ещё раз:"
 )
-VOTE_CONFIRM = "Проверьте голосование:\n\n📊 <b>{question}</b>\n\n{options}\n\nОтправляем админам?"
+VOTE_ANON_PROMPT = (
+    "Каким сделать голосование?\n\n"
+    "🕶 <b>Анонимное</b> — видны только цифры, кто как ответил, не покажет никто.\n"
+    "👀 <b>Видно, кто голосовал</b> — каждый может посмотреть, кто за какой вариант.\n\n"
+    "Изменить это после публикации будет нельзя."
+)
+VOTE_ANON_USE_BUTTONS = "Выберите кнопкой: анонимное или видно, кто голосовал."
+VOTE_ANON_LINE_YES = "🕶 Анонимное"
+VOTE_ANON_LINE_NO = "👀 Видно, кто голосовал"
+VOTE_CONFIRM = (
+    "Проверьте голосование:\n\n📊 <b>{question}</b>\n\n{options}\n\n{anon}\n\nОтправляем админам?"
+)
 VOTE_OPTION_ROW = "▫️ {option}"
 VOTE_SENT = "✅ Заявка на голосование отправлена админам. Когда решат — напишу."
 VOTE_CARD = (
     "📊 <b>Заявка на голосование</b>\n"
     "От: {name} ({username})\n\n"
     "<b>{question}</b>\n\n"
-    "{options}"
+    "{options}\n\n"
+    "{anon}"
 )
 VOTE_APPROVED_NOTE = "✅ Опубликовано — {admin}"
 VOTE_REJECTED_NOTE = "❌ Отклонено — {admin}"

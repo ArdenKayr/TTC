@@ -82,6 +82,10 @@ class VoteRequest(Base):
     tg_id: Mapped[int] = mapped_column(sa.ForeignKey("users.tg_id"))
     question: Mapped[str] = mapped_column(sa.String(300))
     options: Mapped[list[str]] = mapped_column(JSONB)
+    # Анонимный опрос — видно только счётчики; открытый — видно, кто как ответил.
+    is_anonymous: Mapped[bool] = mapped_column(
+        sa.Boolean, default=True, server_default=sa.true()
+    )
     status: Mapped[RequestStatus] = mapped_column(
         request_status_enum,
         default=RequestStatus.PENDING,

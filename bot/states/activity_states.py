@@ -14,4 +14,5 @@ class ActivityForm(StatesGroup):
 class VoteForm(StatesGroup):
     question = State()
     options = State()  # варианты одним сообщением, по строке на вариант
+    anonymity = State()  # анонимный опрос или видно, кто как ответил
     confirm = State()
