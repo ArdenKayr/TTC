@@ -15,7 +15,12 @@ from dataclasses import dataclass
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
-from aiogram.types import InlineKeyboardMarkup, Message, ReplyKeyboardMarkup
+from aiogram.types import (
+    InlineKeyboardMarkup,
+    Message,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import texts
@@ -182,21 +187,35 @@ async def render(session: AsyncSession, key: str, **params) -> Content:
 
 
 async def dm(
-    bot: Bot, session: AsyncSession, tg_id: int, key: str, *, suffix: str = "", **params
+    bot: Bot,
+    session: AsyncSession,
+    tg_id: int,
+    key: str,
+    *,
+    suffix: str = "",
+    reply_markup: ReplyKeyboardMarkup | ReplyKeyboardRemove | None = None,
+    **params,
 ) -> bool:
-    """Сообщение сценария в ЛС. False — если Telegram не дал отправить."""
+    """Сообщение сценария в ЛС. False — если Telegram не дал отправить.
+
+    reply_markup нужен там, где решение админа меняет статус человека:
+    нижнее меню в Telegram живёт, пока его явно не заменят новым сообщением,
+    поэтому одобренный участник иначе остался бы с кнопкой «Регистрация».
+    Если сообщение уходит файлом и текст не влез в подпись, клавиатура
+    ставится на последнее отправленное сообщение — чтобы не мигала дважды.
+    """
     content = await render(session, key, **params)
     text = content.text + suffix
     try:
         if content.file_id is None:
-            await bot.send_message(tg_id, text)
+            await bot.send_message(tg_id, text, reply_markup=reply_markup)
         else:
             send = bot.send_photo if content.file_type == "photo" else bot.send_document
             if len(text) <= content_service.CAPTION_LIMIT:
-                await send(tg_id, content.file_id, caption=text)
+                await send(tg_id, content.file_id, caption=text, reply_markup=reply_markup)
             else:
                 await send(tg_id, content.file_id)
-                await bot.send_message(tg_id, text)
+                await bot.send_message(tg_id, text, reply_markup=reply_markup)
         return True
     except TelegramAPIError as e:
         logger.warning("Failed to DM user %s (scenario %s): %s", tg_id, key, e)

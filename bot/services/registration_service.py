@@ -13,6 +13,7 @@ from bot.db.models import RegistrationRequest, UniversityRequest, User
 from bot.db.repositories import audit_repo, registration_repo, university_repo, user_repo
 from bot.enums import AuditAction, RequestStatus, UserRole
 from bot.keyboards.admin_kb import registration_review_kb, university_request_review_kb
+from bot.keyboards.common_kb import main_menu_kb
 from bot.services import error_service, notification_service, scenario_service
 from bot.services.throttle import rejection_timeout_minutes
 
@@ -162,7 +163,7 @@ async def approve(
         return False, texts.REVIEW_ALREADY_PROCESSED
 
     snapshot = request.raw_input_snapshot or {}
-    await user_repo.upsert_from_registration(
+    user = await user_repo.upsert_from_registration(
         session,
         tg_id=request.tg_id,
         username=snapshot.get("username"),
@@ -201,8 +202,15 @@ async def approve(
             note="GROUP_CHAT_ID не настроен — инвайт-ссылка не создана.",
         )
 
+    # Вместе с поздравлением человек получает меню участника: до этого момента
+    # у него внизу экрана висит «📝 Регистрация», и сама она уже не сработает.
     delivered = await scenario_service.dm(
-        bot, session, request.tg_id, "reg_approved", suffix=invite_line
+        bot,
+        session,
+        request.tg_id,
+        "reg_approved",
+        suffix=invite_line,
+        reply_markup=main_menu_kb(user),
     )
     if not delivered:
         notes.append(texts.NOTE_DM_FAILED)

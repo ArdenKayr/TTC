@@ -2,12 +2,14 @@ from datetime import datetime, timezone
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
+from aiogram.types import ReplyKeyboardRemove
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import texts
 from bot.config import settings
 from bot.db.models import User
 from bot.db.repositories import audit_repo
+from bot.keyboards.common_kb import main_menu_kb
 from bot.enums import AuditAction, UserRole, role_rank
 from bot.services import error_service, scenario_service
 
@@ -96,8 +98,11 @@ async def ban_user(
         reason=reason,
     )
     await session.commit()
-    # Цель узнаёт о бане в ЛС (текст редактируется в «Сценариях»).
-    await scenario_service.dm(bot, session, target.tg_id, "ban_target")
+    # Цель узнаёт о бане в ЛС (текст редактируется в «Сценариях»); заодно
+    # убираем меню — все его кнопки для забаненного всё равно не работают.
+    await scenario_service.dm(
+        bot, session, target.tg_id, "ban_target", reply_markup=ReplyKeyboardRemove()
+    )
     return None
 
 
@@ -129,5 +134,8 @@ async def unban_user(session: AsyncSession, bot: Bot, actor: User, target: User)
         meta={"restored_role": restored.value},
     )
     await session.commit()
-    await scenario_service.dm(bot, session, target.tg_id, "unban_target")
+    # Меню возвращается сразу — под ту роль, которая восстановлена.
+    await scenario_service.dm(
+        bot, session, target.tg_id, "unban_target", reply_markup=main_menu_kb(target)
+    )
     return None
