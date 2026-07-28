@@ -13,7 +13,7 @@ from bot.db.models import RegistrationRequest, UniversityRequest, User
 from bot.db.repositories import audit_repo, registration_repo, university_repo, user_repo
 from bot.enums import AuditAction, RequestStatus, UserRole
 from bot.keyboards.admin_kb import registration_review_kb, university_request_review_kb
-from bot.services import notification_service, scenario_service
+from bot.services import error_service, notification_service, scenario_service
 from bot.services.throttle import rejection_timeout_minutes
 
 INVITE_LINK_TTL = timedelta(minutes=15)
@@ -184,16 +184,35 @@ async def approve(
                 member_limit=1,
             )
             invite_line = texts.APPROVED_DM_INVITE.format(link=link.invite_link)
-        except TelegramAPIError:
+        except TelegramAPIError as e:
             notes.append(texts.NOTE_LINK_FAILED)
+            await error_service.report_issue(
+                bot,
+                source="Регистрация: одобрение",
+                tg_id=request.tg_id,
+                note=f"Не удалось создать инвайт-ссылку: {e}",
+            )
     else:
         notes.append(texts.NOTE_GROUP_NOT_SET)
+        await error_service.report_issue(
+            bot,
+            source="Регистрация: одобрение",
+            tg_id=request.tg_id,
+            note="GROUP_CHAT_ID не настроен — инвайт-ссылка не создана.",
+        )
 
     delivered = await scenario_service.dm(
         bot, session, request.tg_id, "reg_approved", suffix=invite_line
     )
     if not delivered:
         notes.append(texts.NOTE_DM_FAILED)
+        await error_service.report_issue(
+            bot,
+            source="Регистрация: одобрение",
+            tg_id=request.tg_id,
+            note="Человек одобрен, но приветствие со ссылкой ему не доставилось "
+            "(вероятно, ни разу не писал боту).",
+        )
 
     await audit_repo.add(
         session,
@@ -243,7 +262,16 @@ async def reject(
         suffix += texts.REJECTED_DM_TIMEOUT.format(minutes=timeout)
     else:
         suffix += texts.REJECTED_DM_RETRY
-    await scenario_service.dm(bot, session, request.tg_id, "reg_rejected", suffix=suffix)
+    delivered = await scenario_service.dm(
+        bot, session, request.tg_id, "reg_rejected", suffix=suffix
+    )
+    if not delivered:
+        await error_service.report_issue(
+            bot,
+            source="Регистрация: отказ",
+            tg_id=request.tg_id,
+            note="Человеку отказано, но сообщение об отказе не доставилось.",
+        )
 
     await audit_repo.add(
         session,

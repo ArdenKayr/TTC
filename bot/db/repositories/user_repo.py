@@ -24,6 +24,26 @@ async def get_by_username(session: AsyncSession, username: str) -> User | None:
     return result.scalar_one_or_none()
 
 
+async def label_map(session: AsyncSession, tg_ids: set[int]) -> dict[int, str]:
+    """{tg_id: "Имя (@ник)"} для тех из tg_ids, кто есть в users.
+
+    Для логов и карточек ошибок — чтобы вместо голого номера аккаунта
+    показывалось, кто это. Тех, кого в users нет (не зарегистрирован
+    или аккаунт удалён), в словаре не будет — вызывающий код сам решает,
+    как показать номер без имени.
+    """
+    if not tg_ids:
+        return {}
+    result = await session.execute(
+        select(User.tg_id, User.display_name, User.username).where(User.tg_id.in_(tg_ids))
+    )
+    labels: dict[int, str] = {}
+    for tg_id, display_name, username in result.all():
+        handle = f"@{username}" if username else f"id {tg_id}"
+        labels[tg_id] = f"{display_name} ({handle})"
+    return labels
+
+
 async def upsert_from_registration(
     session: AsyncSession,
     *,

@@ -79,7 +79,11 @@ async def main() -> None:
     # Любая необработанная ошибка хендлера: в error_log + карточка владельцу в ЛС.
     dp.errors.register(on_error)
 
-    await bot.delete_webhook(drop_pending_updates=True)
+    # drop_pending_updates=False: апдейты, накопившиеся за время простоя (перезапуск,
+    # деплой), при старте ДОРАБАТЫВАЮТСЯ, а не выбрасываются молча. С True человек мог
+    # нажать «Отправить» анкету ровно в момент рестарта — заявка терялась без следа
+    # и без единой записи в логах (апдейт просто не долетал до кода бота вообще).
+    await bot.delete_webhook(drop_pending_updates=False)
     await resolve_group_chat_id(bot)
     await dp.start_polling(bot)
 

@@ -29,7 +29,7 @@ from bot.db.models import (
 )
 from bot.db.repositories import audit_repo
 from bot.enums import ActivityStatus, ActorType, AuditAction, UserRole
-from bot.services import activity_service, notification_service
+from bot.services import activity_service, error_service, notification_service
 
 
 async def render_profile(session: AsyncSession, user: User) -> str:
@@ -126,5 +126,10 @@ async def delete_account(session: AsyncSession, bot: Bot, user: User) -> None:
         try:
             await bot.ban_chat_member(settings.group_chat_id, tg_id)
             await bot.unban_chat_member(settings.group_chat_id, tg_id, only_if_banned=True)
-        except TelegramAPIError:
-            pass
+        except TelegramAPIError as e:
+            await error_service.report_issue(
+                bot,
+                source="Удаление аккаунта",
+                tg_id=tg_id,
+                note=f"Профиль удалён из базы, но исключить из группы не удалось: {e}",
+            )

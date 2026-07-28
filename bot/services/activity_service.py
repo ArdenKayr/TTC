@@ -17,7 +17,7 @@ from bot import limits, texts
 from bot.db.models import Activity, ActivityRequest, User, VoteRequest
 from bot.db.repositories import audit_repo
 from bot.enums import ActivityStatus, AuditAction, RequestStatus, UserRole
-from bot.services import notification_service, scenario_service
+from bot.services import error_service, notification_service, scenario_service
 
 
 def parse_vote_options(raw: str) -> list[str] | None:
@@ -137,6 +137,13 @@ async def approve_activity(
     )
     if afisha_message_id is None:
         notes.append(texts.NOTE_AFISHA_FAILED)
+        await error_service.report_issue(
+            bot,
+            source="Мероприятие: одобрение",
+            tg_id=author.tg_id,
+            note=f"Мероприятие «{request.title}» одобрено, но карточка в Афишу не встала "
+            "(проверьте права бота и номер топика).",
+        )
     activity.afisha_message_id = afisha_message_id
 
     request.status = RequestStatus.APPROVED
@@ -157,6 +164,12 @@ async def approve_activity(
     )
     if not delivered:
         notes.append(texts.NOTE_DM_FAILED)
+        await error_service.report_issue(
+            bot,
+            source="Мероприятие: одобрение",
+            tg_id=author.tg_id,
+            note=f"Мероприятие «{request.title}» одобрено, но автору не доставилось уведомление.",
+        )
 
     await session.commit()
     return True, "\n".join(notes)
@@ -185,6 +198,12 @@ async def reject_activity(
     )
     if not delivered:
         notes.append(texts.NOTE_DM_FAILED)
+        await error_service.report_issue(
+            bot,
+            source="Мероприятие: отказ",
+            tg_id=request.tg_id,
+            note=f"По заявке «{request.title}» отказано, но автору не доставилось уведомление.",
+        )
     await session.commit()
     return True, "\n".join(notes)
 
@@ -202,6 +221,13 @@ async def approve_vote(
     )
     if poll_message_id is None:
         notes.append(texts.NOTE_POLL_FAILED)
+        await error_service.report_issue(
+            bot,
+            source="Голосование: одобрение",
+            tg_id=request.tg_id,
+            note=f"Голосование «{request.question}» одобрено, но опрос в топик не встал "
+            "(проверьте права бота и номер топика).",
+        )
     request.poll_message_id = poll_message_id
 
     request.status = RequestStatus.APPROVED
@@ -220,6 +246,12 @@ async def approve_vote(
     )
     if not delivered:
         notes.append(texts.NOTE_DM_FAILED)
+        await error_service.report_issue(
+            bot,
+            source="Голосование: одобрение",
+            tg_id=request.tg_id,
+            note=f"Голосование «{request.question}» одобрено, но автору не доставилось уведомление.",
+        )
     await session.commit()
     return True, "\n".join(notes)
 
@@ -247,6 +279,13 @@ async def reject_vote(
     )
     if not delivered:
         notes.append(texts.NOTE_DM_FAILED)
+        await error_service.report_issue(
+            bot,
+            source="Голосование: отказ",
+            tg_id=request.tg_id,
+            note=f"По голосованию «{request.question}» отказано, но автору не доставилось "
+            "уведомление.",
+        )
     await session.commit()
     return True, "\n".join(notes)
 
@@ -309,11 +348,28 @@ async def finish_activity(
     )
 
     dm_key = "act_cancelled" if cancelled else "act_completed"
-    await scenario_service.dm(
+    delivered = await scenario_service.dm(
         bot, session, activity.organizer_id, dm_key, title=escape(activity.title)
     )
+    if not delivered:
+        await error_service.report_issue(
+            bot,
+            source="Мероприятие: завершение/отмена",
+            tg_id=activity.organizer_id,
+            note=f"Мероприятие «{activity.title}» закрыто, но организатору не доставилось "
+            "уведомление.",
+        )
     if demoted:
-        await scenario_service.dm(bot, session, activity.organizer_id, "org_demoted")
+        demoted_delivered = await scenario_service.dm(
+            bot, session, activity.organizer_id, "org_demoted"
+        )
+        if not demoted_delivered:
+            await error_service.report_issue(
+                bot,
+                source="Мероприятие: снятие роли организатора",
+                tg_id=activity.organizer_id,
+                note="Роль организатора снята, но человеку не доставилось уведомление об этом.",
+            )
 
     await session.commit()
     note = texts.ACT_CANCELLED_NOTE if cancelled else texts.ACT_COMPLETED_NOTE

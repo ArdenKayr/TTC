@@ -24,13 +24,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import texts
 from bot.db.models import ErrorLog, User
-from bot.db.repositories import audit_repo
+from bot.db.repositories import audit_repo, user_repo
 from bot.enums import AuditAction as _A
 from bot.filters.role_filter import IsOwner
 from bot.keyboards.callback_data import LogCB, UpdatePostCB
 from bot.keyboards.common_kb import MENU_BUTTON_TEXTS as _MENU_BUTTONS
 from bot.routers.common import send_start_screen
 from bot.services import update_service
+from bot.services.error_service import format_person
 from bot.states.content_states import UpdatePostForm
 
 router = Router(name="owner_panel")
@@ -139,13 +140,22 @@ def _periods_kb(cat: str) -> InlineKeyboardMarkup:
     )
 
 
-def _audit_line(row) -> str:
+def _audit_line(row, labels: dict[int, str]) -> str:
     label = texts.AUDIT_ACTION_LABELS.get(row.action_type, row.action_type)
-    actor = str(row.actor_tg_id) if row.actor_tg_id else texts.LOGS_ACTOR_SYSTEM
-    target = row.target_tg_id or row.target_entity_id
+    actor = (
+        escape(format_person(row.actor_tg_id, labels))
+        if row.actor_tg_id
+        else texts.LOGS_ACTOR_SYSTEM
+    )
+    if row.target_tg_id:
+        target = escape(format_person(row.target_tg_id, labels))
+    elif row.target_entity_id:
+        target = escape(str(row.target_entity_id))
+    else:
+        target = None
     line = f"{row.created_at:%d.%m %H:%M} · <b>{escape(label)}</b> · {actor}"
     if target:
-        line += f" → {escape(str(target))}"
+        line += f" → {target}"
     if row.reason:
         line += f" ({escape(row.reason[:40])})"
     elif row.meta:
@@ -153,10 +163,11 @@ def _audit_line(row) -> str:
     return line
 
 
-def _error_line(row: ErrorLog) -> str:
+def _error_line(row: ErrorLog, labels: dict[int, str]) -> str:
+    who = f" · {escape(format_person(row.user_tg_id, labels))}" if row.user_tg_id else ""
     return (
         f"№{row.id} {row.occurred_at:%d.%m %H:%M} · <b>{escape(row.exception_type)}</b>: "
-        f"{escape(row.exception_message[:60])}"
+        f"{escape(row.exception_message[:60])}{who}"
     )
 
 
@@ -173,13 +184,18 @@ async def _render_logs(session: AsyncSession, cat: str, days: int) -> str:
         rows = list(
             await session.scalars(query.order_by(ErrorLog.occurred_at.desc()).limit(_LOG_LIMIT))
         )
-        lines = [_error_line(r) for r in rows]
+        labels = await user_repo.label_map(session, {r.user_tg_id for r in rows if r.user_tg_id})
+        lines = [_error_line(r, labels) for r in rows]
         footer = texts.LOGS_ERR_FOOTER if rows else ""
     else:
         rows, total = await audit_repo.list_recent(
             session, actions=actions, since=since, limit=_LOG_LIMIT
         )
-        lines = [_audit_line(r) for r in rows]
+        ids = {r.actor_tg_id for r in rows if r.actor_tg_id} | {
+            r.target_tg_id for r in rows if r.target_tg_id
+        }
+        labels = await user_repo.label_map(session, ids)
+        lines = [_audit_line(r, labels) for r in rows]
         footer = ""
 
     if not rows:

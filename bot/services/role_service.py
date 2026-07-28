@@ -9,7 +9,7 @@ from bot.config import settings
 from bot.db.models import User
 from bot.db.repositories import audit_repo
 from bot.enums import AuditAction, UserRole, role_rank
-from bot.services import scenario_service
+from bot.services import error_service, scenario_service
 
 # Иерархия назначений: простые админы роли не раздают, суперадмин назначает
 # до админа включительно, владелец — до суперадмина. Роль «владелец» не
@@ -77,8 +77,15 @@ async def ban_user(
     if settings.group_chat_id is not None:
         try:
             await bot.ban_chat_member(settings.group_chat_id, target.tg_id)
-        except TelegramAPIError:
-            pass
+        except TelegramAPIError as e:
+            # Роль в базе уже «забанен», а физически человек мог остаться в группе —
+            # это должно быть видно, а не тонуть молча.
+            await error_service.report_issue(
+                bot,
+                source="Бан",
+                tg_id=target.tg_id,
+                note=f"Роль сменена на «забанен», но исключить из группы не удалось: {e}",
+            )
     await audit_repo.add(
         session,
         AuditAction.USER_BANNED,
@@ -105,8 +112,13 @@ async def unban_user(session: AsyncSession, bot: Bot, actor: User, target: User)
     if settings.group_chat_id is not None:
         try:
             await bot.unban_chat_member(settings.group_chat_id, target.tg_id, only_if_banned=True)
-        except TelegramAPIError:
-            pass
+        except TelegramAPIError as e:
+            await error_service.report_issue(
+                bot,
+                source="Разбан",
+                tg_id=target.tg_id,
+                note=f"Роль восстановлена в базе, но снять ограничения в группе не удалось: {e}",
+            )
     await audit_repo.add(
         session,
         AuditAction.USER_UNBANNED,
