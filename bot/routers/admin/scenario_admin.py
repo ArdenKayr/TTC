@@ -185,7 +185,7 @@ async def scen_new_photo(
         data["key"],
         file_id=message.photo[-1].file_id,
         file_type="photo",
-        caption=(message.caption or "").strip() or None,
+        caption=content_service.formatted_text(message) or None,
     )
     await state.clear()
     await message.answer(texts.SCEN_SAVED)
@@ -203,7 +203,7 @@ async def scen_new_document(
         data["key"],
         file_id=message.document.file_id,
         file_type="document",
-        caption=(message.caption or "").strip() or None,
+        caption=content_service.formatted_text(message) or None,
     )
     await state.clear()
     await message.answer(texts.SCEN_SAVED)
@@ -214,9 +214,12 @@ async def scen_new_document(
 async def scen_new_text(
     message: Message, session: AsyncSession, state: FSMContext, db_user: User
 ) -> None:
-    text = message.text.strip()
+    text = content_service.formatted_text(message)
     if not scenario_service.validate_template(text):
         await message.answer(texts.SCEN_BAD_BRACES)
+        return
+    if scenario_service.has_split_placeholder(text):
+        await message.answer(texts.SCEN_SPLIT_PLACEHOLDER)
         return
     data = await state.get_data()
     await scenario_service.set_text(session, db_user, data["key"], text)

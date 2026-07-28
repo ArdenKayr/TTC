@@ -67,6 +67,16 @@ async def cb_remove_file(
     await callback.answer()
 
 
+async def _saved(message: Message, session: AsyncSession, slot_key: str) -> None:
+    """«Сохранено» + как блок теперь выглядит (оформление видно сразу)."""
+    await message.answer(texts.CONTENT_SAVED)
+    content = await content_service.get_content(session, slot_key)
+    try:
+        await content_service.send_content(message, content)
+    except Exception:
+        await message.answer(texts.CONTENT_SAVED_BAD_HTML)
+
+
 @router.message(ContentEditForm.waiting, F.photo)
 async def msg_new_photo(
     message: Message, session: AsyncSession, state: FSMContext, db_user: User
@@ -78,10 +88,10 @@ async def msg_new_photo(
         data["slot"],
         file_id=message.photo[-1].file_id,
         file_type="photo",
-        caption=(message.caption or "").strip() or None,
+        caption=content_service.formatted_text(message) or None,
     )
     await state.clear()
-    await message.answer(texts.CONTENT_SAVED)
+    await _saved(message, session, data["slot"])
 
 
 @router.message(ContentEditForm.waiting, F.document)
@@ -95,10 +105,10 @@ async def msg_new_document(
         data["slot"],
         file_id=message.document.file_id,
         file_type="document",
-        caption=(message.caption or "").strip() or None,
+        caption=content_service.formatted_text(message) or None,
     )
     await state.clear()
-    await message.answer(texts.CONTENT_SAVED)
+    await _saved(message, session, data["slot"])
 
 
 @router.message(ContentEditForm.waiting, F.text)
@@ -106,6 +116,8 @@ async def msg_new_text(
     message: Message, session: AsyncSession, state: FSMContext, db_user: User
 ) -> None:
     data = await state.get_data()
-    await content_service.update_text(session, db_user, data["slot"], message.text.strip())
+    await content_service.update_text(
+        session, db_user, data["slot"], content_service.formatted_text(message)
+    )
     await state.clear()
-    await message.answer(texts.CONTENT_SAVED)
+    await _saved(message, session, data["slot"])

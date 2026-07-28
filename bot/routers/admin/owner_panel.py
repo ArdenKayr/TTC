@@ -30,7 +30,7 @@ from bot.filters.role_filter import IsOwner
 from bot.keyboards.callback_data import LogCB, UpdatePostCB
 from bot.keyboards.common_kb import MENU_BUTTON_TEXTS as _MENU_BUTTONS
 from bot.routers.common import send_start_screen
-from bot.services import update_service
+from bot.services import content_service, update_service
 from bot.services.error_service import format_person
 from bot.states.content_states import UpdatePostForm
 
@@ -312,7 +312,7 @@ async def _show_preview(message: Message, state: FSMContext) -> None:
 @router.message(UpdatePostForm.waiting, F.photo)
 async def update_photo(message: Message, state: FSMContext) -> None:
     await state.update_data(
-        text=escape((message.caption or "").strip()) or texts.UPD_EMPTY_TEXT,
+        text=content_service.formatted_text(message) or texts.UPD_EMPTY_TEXT,
         file_id=message.photo[-1].file_id,
         file_type="photo",
     )
@@ -322,7 +322,7 @@ async def update_photo(message: Message, state: FSMContext) -> None:
 @router.message(UpdatePostForm.waiting, F.document)
 async def update_document(message: Message, state: FSMContext) -> None:
     await state.update_data(
-        text=escape((message.caption or "").strip()) or texts.UPD_EMPTY_TEXT,
+        text=content_service.formatted_text(message) or texts.UPD_EMPTY_TEXT,
         file_id=message.document.file_id,
         file_type="document",
     )
@@ -331,7 +331,9 @@ async def update_document(message: Message, state: FSMContext) -> None:
 
 @router.message(UpdatePostForm.waiting, F.text, ~F.text.startswith("/"))
 async def update_text(message: Message, state: FSMContext) -> None:
-    await state.update_data(text=escape(message.text.strip()), file_id=None, file_type=None)
+    await state.update_data(
+        text=content_service.formatted_text(message), file_id=None, file_type=None
+    )
     await _show_preview(message, state)
 
 

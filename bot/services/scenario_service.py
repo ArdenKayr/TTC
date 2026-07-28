@@ -10,6 +10,7 @@
 """
 
 import logging
+import re
 from dataclasses import dataclass
 
 from aiogram import Bot
@@ -142,6 +143,22 @@ def validate_template(text: str) -> bool:
     except (ValueError, IndexError, KeyError):
         return False
     return True
+
+
+# Оформление, попавшее ВНУТРЬ подстановки: {<b>title</b>} вместо <b>{title}</b>.
+_SPLIT_PLACEHOLDER = re.compile(r"\{[^{}]*<[^{}]*\}")
+
+
+def has_split_placeholder(text: str) -> bool:
+    """Подстановка разорвана оформлением — бот не сможет её подставить.
+
+    Легко получить случайно: админ выделяет жирным слово вместе с одной из
+    фигурных скобок. Формально текст остаётся корректным (проверка скобок
+    проходит), но имя подстановки превращается из ``title`` в ``<b>title</b>``,
+    и вместо названия мероприятия человек увидит сырое ``{<b>title</b>}``.
+    Поэтому такой текст не принимаем.
+    """
+    return _SPLIT_PLACEHOLDER.search(text) is not None
 
 
 async def raw(session: AsyncSession, key: str) -> tuple[Content, bool]:
