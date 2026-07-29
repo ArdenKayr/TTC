@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import NamedTuple
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
@@ -19,6 +20,18 @@ from bot.services import error_service, scenario_service
 _BASE_ASSIGNABLE = {UserRole.USER, UserRole.ORGANIZER, UserRole.ADMIN, UserRole.CUSTOM}
 
 
+class RoleChange(NamedTuple):
+    """Итог смены роли: ошибка (или None) + дошло ли уведомление до человека.
+
+    Два поля, а не одно, потому что это два разных исхода: роль могла
+    смениться успешно, а уведомление с новым меню — не уйти. Для админа это
+    не «ошибка операции», но знать об этом он должен сразу.
+    """
+
+    error: str | None
+    notified: bool = True
+
+
 def assignable_roles(actor: User) -> set[UserRole]:
     if actor.current_role == UserRole.OWNER:
         return _BASE_ASSIGNABLE | {UserRole.SUPERADMIN}
@@ -28,24 +41,24 @@ def assignable_roles(actor: User) -> set[UserRole]:
 
 
 async def set_role(
-    session: AsyncSession, actor: User, target: User, new_role: UserRole
-) -> str | None:
-    """Returns a user-facing error, or None on success."""
+    session: AsyncSession, bot: Bot, actor: User, target: User, new_role: UserRole
+) -> RoleChange:
+    """Меняет роль, уведомляет человека и обновляет ему нижнее меню."""
     allowed = assignable_roles(actor)
     if not allowed:
-        return texts.ROLE_NO_RIGHTS
+        return RoleChange(texts.ROLE_NO_RIGHTS)
     if new_role not in allowed:
-        return texts.ROLE_NOT_ASSIGNABLE
+        return RoleChange(texts.ROLE_NOT_ASSIGNABLE)
     # Нельзя менять роль тому, кто в иерархии не ниже тебя (кроме самого себя):
     # суперадмин не трогает суперадминов и владельца, владельца не трогает никто.
     if target.tg_id != actor.tg_id and role_rank(target.current_role) >= role_rank(
         actor.current_role
     ):
-        return texts.ROLE_TARGET_PROTECTED
+        return RoleChange(texts.ROLE_TARGET_PROTECTED)
     if target.current_role == UserRole.BANNED:
-        return texts.ROLE_TARGET_BANNED
+        return RoleChange(texts.ROLE_TARGET_BANNED)
     if target.current_role == new_role:
-        return texts.ROLE_ALREADY_SET.format(role=new_role.value)
+        return RoleChange(texts.ROLE_ALREADY_SET.format(role=new_role.value))
     old_role = target.current_role
     target.current_role = new_role
     await audit_repo.add(
@@ -58,7 +71,31 @@ async def set_role(
         meta={"old_role": old_role.value, "new_role": new_role.value},
     )
     await session.commit()
-    return None
+    # Нижнее меню в Telegram живёт, пока его не заменят новым сообщением.
+    # Без этой отправки человек после назначения суперадмином остался бы
+    # со старой клавиатурой (вплоть до кнопок «Регистрация» и «Кто мы?»,
+    # если он не писал боту с момента одобрения анкеты).
+    delivered = await scenario_service.dm(
+        bot,
+        session,
+        target.tg_id,
+        "role_changed",
+        reply_markup=main_menu_kb(target),
+        role=texts.ROLE_LABELS.get(new_role, new_role.value),
+    )
+    if not delivered:
+        await error_service.report_issue(
+            bot,
+            source="Смена роли",
+            tg_id=target.tg_id,
+            note=(
+                f"Роль изменена ({old_role.value} → {new_role.value}), но уведомление "
+                "в ЛС не доставлено: меню у человека осталось старым. Обычно это "
+                "значит, что он не запускал бота или заблокировал его — меню "
+                "обновится само, когда он нажмёт /start."
+            ),
+        )
+    return RoleChange(None, delivered)
 
 
 async def ban_user(

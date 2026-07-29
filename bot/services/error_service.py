@@ -25,7 +25,6 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import ErrorEvent
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import texts
 from bot.db.base import async_session_factory

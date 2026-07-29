@@ -160,22 +160,32 @@ async def cb_user_action(
         await callback.answer()
         return
 
+    bot = callback.bot
+    notified = True
     if callback_data.action == "make_admin":
-        error = await role_service.set_role(session, db_user, target, UserRole.ADMIN)
+        error, notified = await role_service.set_role(
+            session, bot, db_user, target, UserRole.ADMIN
+        )
     elif callback_data.action == "remove_admin":
         if target.current_role != UserRole.ADMIN:
             await callback.answer(texts.SUPER_NOT_ADMIN, show_alert=True)
             return
-        error = await role_service.set_role(session, db_user, target, UserRole.USER)
+        error, notified = await role_service.set_role(
+            session, bot, db_user, target, UserRole.USER
+        )
     elif callback_data.action == "make_super":
-        error = await role_service.set_role(session, db_user, target, UserRole.SUPERADMIN)
+        error, notified = await role_service.set_role(
+            session, bot, db_user, target, UserRole.SUPERADMIN
+        )
     elif callback_data.action == "remove_super":
         if target.current_role != UserRole.SUPERADMIN:
             await callback.answer(texts.SUPER_NOT_SUPER, show_alert=True)
             return
-        error = await role_service.set_role(session, db_user, target, UserRole.ADMIN)
+        error, notified = await role_service.set_role(
+            session, bot, db_user, target, UserRole.ADMIN
+        )
     elif callback_data.action == "ban":
-        error = await role_service.ban_user(session, callback.bot, db_user, target, None)
+        error = await role_service.ban_user(session, bot, db_user, target, None)
     else:
         await callback.answer()
         return
@@ -184,4 +194,9 @@ async def cb_user_action(
         await callback.answer(error, show_alert=True)
         return
     await _refresh_card(callback, target, db_user)
-    await callback.answer(texts.SUPER_DONE)
+    # Роль сменилась, но человек об этом не узнал — говорим об этом сразу
+    # модальным окном, а не тихим тостом, который легко пропустить.
+    if notified:
+        await callback.answer(texts.SUPER_DONE)
+    else:
+        await callback.answer(texts.SUPER_DONE + texts.SETROLE_DM_FAILED, show_alert=True)

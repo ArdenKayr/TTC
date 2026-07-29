@@ -85,10 +85,11 @@ async def cmd_setrole(
     if target is None:
         await message.answer(texts.USER_NOT_FOUND)
         return
-    error = await role_service.set_role(session, db_user, target, new_role)
+    error, notified = await role_service.set_role(
+        session, message.bot, db_user, target, new_role
+    )
     if error:
         await message.answer(error)
         return
-    await message.answer(
-        texts.SETROLE_DONE.format(name=target.display_name, role=new_role.value)
-    )
+    done = texts.SETROLE_DONE.format(name=target.display_name, role=new_role.value)
+    await message.answer(done if notified else done + texts.SETROLE_DM_FAILED)

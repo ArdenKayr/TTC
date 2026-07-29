@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot import texts
 from bot.db.models import User
 from bot.db.repositories import audit_repo
-from bot.enums import AuditAction, UserRole
+from bot.enums import AuditAction
 from bot.filters.role_filter import IsSuperadmin
 from bot.keyboards.callback_data import (
     CrudCancelCB,

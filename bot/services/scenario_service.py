@@ -110,6 +110,13 @@ _LIST = [
         ("question",),
     ),
     Scenario("report_sent", "Репорт принят", G_PROFILE, texts.REPORT_SENT),
+    Scenario(
+        "role_changed",
+        "Роль изменена админом",
+        G_PROFILE,
+        texts.ROLE_CHANGED_DM,
+        ("role",),
+    ),
     Scenario("profile_updated", "Профиль обновлён", G_PROFILE, texts.PROFILE_UPDATED),
     Scenario("profile_deleted", "Аккаунт удалён", G_PROFILE, texts.PROFILE_DELETED),
     Scenario(
