@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(pip show *)",
-      "Bash(python -m venv .venv)"
+      "Bash(python -m venv .venv)",
+      "Bash(ssh -i ~/.ssh/ttc_vps -o BatchMode=yes root@45.91.238.177 ' *)"
     ]
   }
 }
