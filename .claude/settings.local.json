@@ -10,7 +10,22 @@
       "PowerShell(git -C c:\\\\Code\\\\TTC log --oneline -1 HEAD)",
       "PowerShell(git -C c:\\\\Code\\\\TTC log --oneline -1 origin/main)",
       "PowerShell(git -C c:\\\\Code\\\\TTC rev-list --left-right --count HEAD...origin/main)",
-      "PowerShell(git -C c:\\\\Code\\\\TTC diff -- .claude/settings.local.json)"
+      "PowerShell(git -C c:\\\\Code\\\\TTC diff -- .claude/settings.local.json)",
+      "PowerShell(cd c:\\\\Code\\\\TTC; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe \"C:\\\\Users\\\\uzel1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Code-TTC\\\\bf498de2-c481-4e9e-a42e-900b55014c72\\\\scratchpad\\\\check_facts.py\")",
+      "PowerShell(cd c:\\\\Code\\\\TTC; $env:PYTHONIOENCODING='utf-8'; $env:PYTHONPATH='c:\\\\Code\\\\TTC'; .\\\\.venv\\\\Scripts\\\\python.exe \"C:\\\\Users\\\\uzel1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Code-TTC\\\\bf498de2-c481-4e9e-a42e-900b55014c72\\\\scratchpad\\\\check_facts.py\")",
+      "Bash(python \"C:/Users/uzel1/AppData/Local/Temp/claude/c--Code-TTC/bf498de2-c481-4e9e-a42e-900b55014c72/scratchpad/check.py\")",
+      "PowerShell($f='C:\\\\Users\\\\uzel1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Code-TTC\\\\bf498de2-c481-4e9e-a42e-900b55014c72\\\\tasks\\\\wb1pv5y2v.output'; $s=Get-Content $f -Raw; Write-Output \"длина: $\\($s.Length\\)\"; Write-Output \"--- первые 300 ---\"; $s.Substring\\(0,300\\); Write-Output \"--- последние 600 ---\"; $s.Substring\\($s.Length-600\\))",
+      "PowerShell(cd c:\\\\Code\\\\TTC; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe \"C:\\\\Users\\\\uzel1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Code-TTC\\\\bf498de2-c481-4e9e-a42e-900b55014c72\\\\scratchpad\\\\peek.py\")",
+      "PowerShell(cd c:\\\\Code\\\\TTC; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe \"C:\\\\Users\\\\uzel1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Code-TTC\\\\bf498de2-c481-4e9e-a42e-900b55014c72\\\\scratchpad\\\\convert.py\")",
+      "PowerShell(cd c:\\\\Code\\\\TTC; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe \"C:\\\\Users\\\\uzel1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Code-TTC\\\\bf498de2-c481-4e9e-a42e-900b55014c72\\\\scratchpad\\\\attach.py\")",
+      "PowerShell(cd c:\\\\Code\\\\TTC; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe \"C:\\\\Users\\\\uzel1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Code-TTC\\\\bf498de2-c481-4e9e-a42e-900b55014c72\\\\scratchpad\\\\diag.py\")",
+      "PowerShell(cd c:\\\\Code\\\\TTC; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe -m scripts.build_scenario_map)",
+      "PowerShell(cd c:\\\\Code\\\\TTC; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests/test_scenario_map.py -q)",
+      "PowerShell(cd c:\\\\Code\\\\TTC; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe \"C:\\\\Users\\\\uzel1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Code-TTC\\\\bf498de2-c481-4e9e-a42e-900b55014c72\\\\scratchpad\\\\tbl.py\")",
+      "PowerShell(cd c:\\\\Code\\\\TTC; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe \"C:\\\\Users\\\\uzel1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Code-TTC\\\\bf498de2-c481-4e9e-a42e-900b55014c72\\\\scratchpad\\\\fix_tables.py\")",
+      "PowerShell(cd c:\\\\Code\\\\TTC; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests/test_scenario_map.py -q; if \\($?\\) { .\\\\.venv\\\\Scripts\\\\python.exe -m scripts.build_scenario_map })",
+      "PowerShell(cd c:\\\\Code\\\\TTC; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe -m pytest -q)",
+      "PowerShell(cd c:\\\\Code\\\\TTC; $f='docs\\\\scenario-map.html'; $i=Get-Item $f; Write-Output \"размер: $\\([math]::Round\\($i.Length/1KB,1\\)\\) КБ\"; $t=Get-Content $f -Raw -Encoding UTF8; foreach\\($m in @\\('data-roles','Гость','Суперадмин','area-db','area-scenarios','карта-сценариев.bat'\\)\\){ Write-Output \"$m : $\\([regex]::Matches\\($t,[regex]::Escape\\($m\\)\\).Count\\)\" })"
     ]
   }
 }
