@@ -3,7 +3,14 @@
     "allow": [
       "Bash(pip show *)",
       "Bash(python -m venv .venv)",
-      "Bash(ssh -i ~/.ssh/ttc_vps -o BatchMode=yes root@45.91.238.177 ' *)"
+      "Bash(ssh -i ~/.ssh/ttc_vps -o BatchMode=yes root@45.91.238.177 ' *)",
+      "PowerShell(git -C c:\\\\Code\\\\TTC status --short)",
+      "PowerShell(git -C c:\\\\Code\\\\TTC diff HEAD -- PROJECT.md)",
+      "PowerShell(git -C c:\\\\Code\\\\TTC fetch --quiet origin)",
+      "PowerShell(git -C c:\\\\Code\\\\TTC log --oneline -1 HEAD)",
+      "PowerShell(git -C c:\\\\Code\\\\TTC log --oneline -1 origin/main)",
+      "PowerShell(git -C c:\\\\Code\\\\TTC rev-list --left-right --count HEAD...origin/main)",
+      "PowerShell(git -C c:\\\\Code\\\\TTC diff -- .claude/settings.local.json)"
     ]
   }
 }
