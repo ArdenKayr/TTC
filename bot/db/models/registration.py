@@ -24,7 +24,7 @@ class RegistrationRequest(Base):
     # Имя/ник — как человек просит к нему обращаться (не паспортное ФИО).
     full_name: Mapped[str] = mapped_column(sa.String(255))
     university_id: Mapped[int | None] = mapped_column(
-        sa.ForeignKey("universities.university_id")
+        sa.ForeignKey("universities.university_id", ondelete="SET NULL")
     )
     university_group: Mapped[str | None] = mapped_column(sa.String(50))
     birth_date: Mapped[date]
@@ -33,7 +33,11 @@ class RegistrationRequest(Base):
     # Заполнено, если человек подал заявку на новый вуз: карточка регистрации
     # отправляется админам только после решения по этой заявке.
     university_request_id: Mapped[uuid.UUID | None] = mapped_column(
-        sa.ForeignKey("university_requests.request_id", name="fk_reg_requests_university_request")
+        sa.ForeignKey(
+            "university_requests.request_id",
+            name="fk_reg_requests_university_request",
+            ondelete="SET NULL",
+        )
     )
     raw_input_snapshot: Mapped[dict | None] = mapped_column(JSONB)
     status: Mapped[RequestStatus] = mapped_column(
@@ -44,7 +48,9 @@ class RegistrationRequest(Base):
     )
     attempt_number: Mapped[int]
     next_allowed_attempt: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
-    processed_by: Mapped[int | None] = mapped_column(sa.ForeignKey("users.tg_id"))
+    processed_by: Mapped[int | None] = mapped_column(
+        sa.ForeignKey("users.tg_id", ondelete="SET NULL")
+    )
     processed_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     admin_comment: Mapped[str | None] = mapped_column(sa.Text)
     created_at: Mapped[datetime] = mapped_column(

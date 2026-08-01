@@ -15,7 +15,9 @@ class ContentBlock(Base):
     text: Mapped[str | None] = mapped_column(sa.Text)
     file_id: Mapped[str | None] = mapped_column(sa.String(255))
     file_type: Mapped[str | None] = mapped_column(sa.String(20))
-    updated_by: Mapped[int | None] = mapped_column(sa.ForeignKey("users.tg_id"))
+    updated_by: Mapped[int | None] = mapped_column(
+        sa.ForeignKey("users.tg_id", ondelete="SET NULL")
+    )
     updated_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), server_default=sa.text("now()"), onupdate=sa.func.now()
     )

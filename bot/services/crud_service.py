@@ -5,6 +5,13 @@
 суперадмины — только разрешённые; users для суперадминов только на чтение
 (роли меняются через панель «Пользователи», где работает иерархия).
 Каждое изменение через CRUD пишется в audit_log.
+
+Удалить можно любую запись. База для этого настроена так, что ссылки на
+удалённую запись обнуляются, а не запрещают удаление (миграция 0011), —
+поэтому вместо тупика «нельзя, есть связи» панель показывает, что именно
+связано с записью, и оставляет решение за человеком. Разбор связей строится
+автоматически из описания таблиц; руками написаны только их человеческие
+названия в LINK_LABELS.
 """
 
 import json
@@ -47,8 +54,7 @@ class TableSpec:
     model: type
     label: Callable[[Any], str]
     superadmin: bool = True  # видна ли суперадминам (иначе только владельцу)
-    read_only: bool = False  # запрет изменений (аудит- и лог-таблицы)
-    write_owner_only: bool = False  # менять может только владелец (users)
+    write_owner_only: bool = False  # менять может только владелец (users, логи)
     create_fields: tuple[str, ...] = ()  # поля для «Создать запись» (пусто = нельзя)
 
 
@@ -116,13 +122,15 @@ _SPECS = [
     TableSpec(
         "cont", "Контент и сценарии", ContentBlock, lambda o: _short(o.slot), superadmin=False
     ),
+    # Логи бот сам только пополняет. Правит и чистит их вручную владелец —
+    # он же единственный, кто их видит.
     TableSpec(
         "aud",
         "Аудит-лог",
         AuditLog,
         lambda o: f"{o.log_id} · {_short(o.action_type, 25)}",
         superadmin=False,
-        read_only=True,
+        write_owner_only=True,
     ),
     TableSpec(
         "err",
@@ -130,7 +138,7 @@ _SPECS = [
         ErrorLog,
         lambda o: f"{o.id} · {_short(o.exception_type, 25)}",
         superadmin=False,
-        read_only=True,
+        write_owner_only=True,
     ),
 ]
 TABLES: dict[str, TableSpec] = {s.code: s for s in _SPECS}
@@ -146,8 +154,6 @@ def can_view(user: User, spec: TableSpec) -> bool:
 
 
 def can_write(user: User, spec: TableSpec) -> bool:
-    if spec.read_only:
-        return False
     if spec.write_owner_only and user.current_role != UserRole.OWNER:
         return False
     return can_view(user, spec)
@@ -316,6 +322,243 @@ def render_detail(spec: TableSpec, obj: Any, header: str) -> str:
         )
     text = "\n".join(lines)
     return text if len(text) <= 4000 else text[:3999] + "…"
+
+
+# --------------------------------------------------------------------------
+# Что связано с записью
+# --------------------------------------------------------------------------
+
+# Как назвать записи, которые ссылаются на удаляемую. Ключ — таблица и колонка
+# со ссылкой. Значение — три формы существительного (1 / 2 / 5) и пояснение,
+# чем эта запись приходится удаляемой.
+#
+# Сам список ссылок вычисляется из описания таблиц, поэтому забыть здесь новую
+# связь нельзя: за этим следит tests/test_crud_links.py.
+LINK_LABELS: dict[tuple[str, str], tuple[tuple[str, str, str], str]] = {
+    # Ссылки на человека
+    ("activity_requests", "tg_id"): (
+        ("заявка на мероприятие", "заявки на мероприятие", "заявок на мероприятие"),
+        "он подал",
+    ),
+    ("activity_requests", "processed_by"): (
+        ("заявка на мероприятие", "заявки на мероприятие", "заявок на мероприятие"),
+        "он разобрал",
+    ),
+    ("activities", "organizer_id"): (
+        ("мероприятие", "мероприятия", "мероприятий"),
+        "он организатор",
+    ),
+    ("vote_requests", "tg_id"): (
+        ("заявка на голосование", "заявки на голосование", "заявок на голосование"),
+        "он подал",
+    ),
+    ("vote_requests", "processed_by"): (
+        ("заявка на голосование", "заявки на голосование", "заявок на голосование"),
+        "он разобрал",
+    ),
+    ("registration_requests", "processed_by"): (
+        ("заявка на регистрацию", "заявки на регистрацию", "заявок на регистрацию"),
+        "он разобрал",
+    ),
+    ("university_requests", "processed_by"): (
+        ("заявка на вуз", "заявки на вуз", "заявок на вуз"),
+        "он разобрал",
+    ),
+    ("alias_suggestions", "processed_by"): (
+        ("предложение варианта", "предложения варианта", "предложений варианта"),
+        "он разобрал",
+    ),
+    ("audit_log", "actor_tg_id"): (
+        ("запись аудита", "записи аудита", "записей аудита"),
+        "это его действия",
+    ),
+    ("content_blocks", "updated_by"): (
+        ("блок контента", "блока контента", "блоков контента"),
+        "он менял последним",
+    ),
+    # Ссылки на вуз
+    ("users", "university_id"): (
+        ("участник", "участника", "участников"),
+        "у них указан этот вуз",
+    ),
+    ("registration_requests", "university_id"): (
+        ("заявка на регистрацию", "заявки на регистрацию", "заявок на регистрацию"),
+        "в них указан этот вуз",
+    ),
+    ("university_requests", "created_university_id"): (
+        ("заявка на вуз", "заявки на вуз", "заявок на вуз"),
+        "по ним вуз и создан",
+    ),
+    ("university_aliases", "university_id"): (
+        ("вариант поиска", "варианта поиска", "вариантов поиска"),
+        "",
+    ),
+    ("alias_suggestions", "university_id"): (
+        ("предложение варианта", "предложения варианта", "предложений варианта"),
+        "",
+    ),
+    # Прочие ссылки
+    ("activities", "request_id"): (
+        ("мероприятие", "мероприятия", "мероприятий"),
+        "создано по этой заявке",
+    ),
+    ("registration_requests", "university_request_id"): (
+        ("заявка на регистрацию", "заявки на регистрацию", "заявок на регистрацию"),
+        "ждёт решения по этой заявке на вуз",
+    ),
+    ("users", "permission_group_id"): (
+        ("участник", "участника", "участников"),
+        "состоят в этой группе прав",
+    ),
+}
+
+
+# Ссылки «по номеру», без жёсткой связи в базе. Заявку человек подаёт до того,
+# как у него появляется запись в users, поэтому связать их было нельзя. При
+# удалении человека такие записи остаются с номером несуществующего аккаунта —
+# и предупреждение обязано об этом сказать, иначе оно вводит в заблуждение.
+SOFT_LINKS: dict[tuple[str, str], tuple[str, tuple[str, str, str], str]] = {
+    ("registration_requests", "tg_id"): (
+        "users",
+        ("заявка на регистрацию", "заявки на регистрацию", "заявок на регистрацию"),
+        "он подал",
+    ),
+    ("university_requests", "tg_id"): (
+        "users",
+        ("заявка на вуз", "заявки на вуз", "заявок на вуз"),
+        "он подал",
+    ),
+    ("alias_suggestions", "tg_id"): (
+        "users",
+        ("предложение варианта", "предложения варианта", "предложений варианта"),
+        "он предложил",
+    ),
+    ("audit_log", "target_tg_id"): (
+        "users",
+        ("запись аудита", "записи аудита", "записей аудита"),
+        "он в них тот, кого касалось действие",
+    ),
+    ("error_log", "user_tg_id"): (
+        "users",
+        ("запись об ошибке", "записи об ошибке", "записей об ошибке"),
+        "сбой случился у него",
+    ),
+}
+
+# Что станет со связанными записями после удаления.
+CLEARED = "cleared"  # запись останется, ссылка опустеет
+KEPT = "kept"  # запись останется, и в ней останется номер удалённого
+CASCADED = "cascaded"  # запись удалится вместе с этой
+
+
+@dataclass(frozen=True)
+class RelatedGroup:
+    """Одна пачка записей, которые ссылаются на удаляемую."""
+
+    count: int
+    noun: str  # «11 мероприятий» — уже в нужной форме
+    role: str  # «он организатор»
+    fate: str  # CLEARED / KEPT / CASCADED
+
+
+def plural(n: int, one: str, few: str, many: str) -> str:
+    """Форма существительного при числе: 1 заявка, 2 заявки, 5 заявок."""
+    if n % 100 // 10 == 1:
+        return many
+    last = n % 10
+    if last == 1:
+        return one
+    if 2 <= last <= 4:
+        return few
+    return many
+
+
+def incoming_links(table: sa.Table) -> list[tuple[sa.Table, sa.Column, Any]]:
+    """Все ссылки на эту таблицу: (откуда, какая колонка, сама связь)."""
+    from bot.db.base import Base
+
+    found = []
+    for other in Base.metadata.tables.values():
+        for fk in sorted(other.foreign_keys, key=lambda f: f.parent.name):
+            if fk.column.table is table:
+                found.append((other, fk.parent, fk))
+    return found
+
+
+async def related(session: AsyncSession, spec: TableSpec, obj: Any) -> list[RelatedGroup]:
+    """Что ссылается на запись — с количеством и человеческим объяснением.
+
+    Считаются только прямые ссылки: в этой базе у записей, удаляемых вместе с
+    родителем (варианты поиска вуза, предложения вариантов), своих потомков
+    нет, поэтому глубже спускаться незачем.
+    """
+    from bot.db.base import Base
+
+    table = spec.model.__table__
+    pk = pk_col(spec)
+    pk_value = getattr(obj, pk.key)
+
+    async def measure(child: sa.Table, column: sa.Column) -> int:
+        return await session.scalar(
+            select(func.count()).select_from(child).where(column == pk_value)
+        )
+
+    groups: list[RelatedGroup] = []
+    for child, column, fk in incoming_links(table):
+        if fk.column.name != pk.name:
+            continue
+        found = await measure(child, column)
+        if not found:
+            continue
+        forms, role = LINK_LABELS.get(
+            (child.name, column.name), ((child.name, child.name, child.name), "")
+        )
+        groups.append(
+            RelatedGroup(
+                count=found,
+                noun=plural(found, *forms),
+                role=role,
+                fate=CASCADED if (fk.ondelete or "").upper() == "CASCADE" else CLEARED,
+            )
+        )
+
+    for (child_name, column_name), (target, forms, role) in SOFT_LINKS.items():
+        if target != table.name:
+            continue
+        child = Base.metadata.tables[child_name]
+        found = await measure(child, child.columns[column_name])
+        if not found:
+            continue
+        groups.append(
+            RelatedGroup(count=found, noun=plural(found, *forms), role=role, fate=KEPT)
+        )
+
+    groups.sort(key=lambda g: (-g.count, g.noun))
+    return groups
+
+
+def describe_links(groups: list[RelatedGroup]) -> str:
+    """Связи словами — для экрана подтверждения удаления."""
+    from bot import texts
+
+    if not groups:
+        return texts.CRUD_LINKS_NONE
+
+    def line(group: RelatedGroup) -> str:
+        tail = f" — {group.role}" if group.role else ""
+        return texts.CRUD_LINKS_ITEM.format(count=group.count, noun=group.noun, role=tail)
+
+    sections = [
+        (CLEARED, texts.CRUD_LINKS_CLEARED),
+        (KEPT, texts.CRUD_LINKS_KEPT),
+        (CASCADED, texts.CRUD_LINKS_GONE),
+    ]
+    parts = []
+    for fate, template in sections:
+        rows = [g for g in groups if g.fate == fate]
+        if rows:
+            parts.append(template.format(items="\n".join(line(g) for g in rows)))
+    return "\n\n".join(parts)
 
 
 def audit_value(value: Any) -> str | None:

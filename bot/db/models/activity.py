@@ -18,7 +18,12 @@ class ActivityRequest(Base):
     request_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    tg_id: Mapped[int] = mapped_column(sa.ForeignKey("users.tg_id"))
+    # Автор. Пусто — если человека удалили из базы: заявка остаётся, но уже
+    # «от удалённого пользователя». Так владелец может удалить кого угодно,
+    # не разрушая историю (см. ondelete="SET NULL" у всех ссылок на людей).
+    tg_id: Mapped[int | None] = mapped_column(
+        sa.ForeignKey("users.tg_id", ondelete="SET NULL")
+    )
     title: Mapped[str] = mapped_column(sa.String(100))
     description: Mapped[str] = mapped_column(sa.Text)
     organizers_text: Mapped[str | None] = mapped_column(sa.Text)  # кто проводит, @ники
@@ -31,7 +36,9 @@ class ActivityRequest(Base):
         server_default=RequestStatus.PENDING.value,
         index=True,
     )
-    processed_by: Mapped[int | None] = mapped_column(sa.ForeignKey("users.tg_id"))
+    processed_by: Mapped[int | None] = mapped_column(
+        sa.ForeignKey("users.tg_id", ondelete="SET NULL")
+    )
     processed_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), server_default=sa.text("now()")
@@ -46,7 +53,10 @@ class Activity(Base):
     activity_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    organizer_id: Mapped[int] = mapped_column(sa.ForeignKey("users.tg_id"), index=True)
+    # Организатор. Пусто — если человека удалили: мероприятие остаётся в Афише.
+    organizer_id: Mapped[int | None] = mapped_column(
+        sa.ForeignKey("users.tg_id", ondelete="SET NULL"), index=True
+    )
     title: Mapped[str] = mapped_column(sa.String(100))
     description: Mapped[str] = mapped_column(sa.Text)
     organizers_text: Mapped[str | None] = mapped_column(sa.Text)
@@ -61,7 +71,7 @@ class Activity(Base):
     # id сообщения-карточки в топике «Афиша» — чтобы пометить её при завершении/отмене.
     afisha_message_id: Mapped[int | None] = mapped_column(sa.BigInteger)
     request_id: Mapped[uuid.UUID | None] = mapped_column(
-        sa.ForeignKey("activity_requests.request_id")
+        sa.ForeignKey("activity_requests.request_id", ondelete="SET NULL")
     )
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), server_default=sa.text("now()")
@@ -79,7 +89,10 @@ class VoteRequest(Base):
     request_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    tg_id: Mapped[int] = mapped_column(sa.ForeignKey("users.tg_id"))
+    # Автор. Пусто — если человека удалили из базы.
+    tg_id: Mapped[int | None] = mapped_column(
+        sa.ForeignKey("users.tg_id", ondelete="SET NULL")
+    )
     question: Mapped[str] = mapped_column(sa.String(300))
     options: Mapped[list[str]] = mapped_column(JSONB)
     # Анонимный опрос — видно только счётчики; открытый — видно, кто как ответил.
@@ -92,7 +105,9 @@ class VoteRequest(Base):
         server_default=RequestStatus.PENDING.value,
         index=True,
     )
-    processed_by: Mapped[int | None] = mapped_column(sa.ForeignKey("users.tg_id"))
+    processed_by: Mapped[int | None] = mapped_column(
+        sa.ForeignKey("users.tg_id", ondelete="SET NULL")
+    )
     processed_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     poll_message_id: Mapped[int | None] = mapped_column(sa.BigInteger)
     created_at: Mapped[datetime] = mapped_column(

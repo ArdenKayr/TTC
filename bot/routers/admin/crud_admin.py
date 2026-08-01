@@ -380,8 +380,19 @@ async def cb_delete(
         await callback.answer(texts.CRUD_NOT_FOUND, show_alert=True)
         return
     if not callback_data.confirmed:
+        # Удалить можно что угодно, но сначала показываем, чего это коснётся:
+        # какие записи останутся с опустевшей ссылкой, а какие уйдут вместе.
+        groups = await crud_service.related(session, spec, obj)
+        text = texts.CRUD_DELETE_CONFIRM.format(
+            pk=callback_data.pk,
+            title=spec.title,
+            label=crud_service.fmt_value(spec.label(obj), 80),
+            links=crud_service.describe_links(groups),
+        )
+        if spec.model is User and getattr(obj, "tg_id", None) == db_user.tg_id:
+            text += texts.CRUD_DELETE_SELF
         await callback.message.answer(
-            texts.CRUD_DELETE_CONFIRM.format(pk=callback_data.pk, title=spec.title),
+            text,
             reply_markup=InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
@@ -400,6 +411,7 @@ async def cb_delete(
         )
         await callback.answer()
         return
+    label = spec.label(obj)
     await session.delete(obj)
     await audit_repo.add(
         session,
@@ -407,13 +419,18 @@ async def cb_delete(
         actor_tg_id=db_user.tg_id,
         target_entity_type=spec.model.__tablename__,
         target_entity_id=callback_data.pk,
-        meta={"label": spec.label(obj)},
+        meta={"label": label},
     )
     try:
         await session.commit()
-    except IntegrityError:
+    except IntegrityError as error:
+        # Сюда попасть не должны: у всех связей задано, что делать при удалении
+        # (миграция 0011). Если всё же попали — это ошибка в схеме, а не тупик
+        # для человека, поэтому говорим об этом прямо.
         await session.rollback()
-        await callback.message.answer(texts.CRUD_FK_BLOCKED)
+        await callback.message.answer(
+            texts.CRUD_DELETE_FAILED.format(error=type(error.orig).__name__)
+        )
         await callback.answer()
         return
     await callback.message.edit_text(texts.CRUD_DELETED)

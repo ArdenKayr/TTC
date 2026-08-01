@@ -16,7 +16,7 @@ class User(Base):
     username: Mapped[str | None] = mapped_column(sa.String(32), index=True)
     display_name: Mapped[str] = mapped_column(sa.String(255))
     university_id: Mapped[int | None] = mapped_column(
-        sa.ForeignKey("universities.university_id")
+        sa.ForeignKey("universities.university_id", ondelete="SET NULL")
     )
     university_group: Mapped[str | None] = mapped_column(sa.String(50))
     birth_date: Mapped[date | None]
@@ -30,7 +30,11 @@ class User(Base):
     custom_permissions: Mapped[dict | None] = mapped_column(JSONB)
     # Группа прав (может не быть); полный админ (current_role=admin) может всё и без неё.
     permission_group_id: Mapped[int | None] = mapped_column(
-        sa.ForeignKey("permission_groups.group_id", name="fk_users_permission_group")
+        sa.ForeignKey(
+            "permission_groups.group_id",
+            name="fk_users_permission_group",
+            ondelete="SET NULL",
+        )
     )
     banned_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     banned_reason: Mapped[str | None] = mapped_column(sa.Text)

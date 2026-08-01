@@ -196,7 +196,7 @@ async def render(session: AsyncSession, key: str, **params) -> Content:
 async def dm(
     bot: Bot,
     session: AsyncSession,
-    tg_id: int,
+    tg_id: int | None,
     key: str,
     *,
     suffix: str = "",
@@ -210,7 +210,14 @@ async def dm(
     поэтому одобренный участник иначе остался бы с кнопкой «Регистрация».
     Если сообщение уходит файлом и текст не влез в подпись, клавиатура
     ставится на последнее отправленное сообщение — чтобы не мигала дважды.
+
+    Адресата может не быть вовсе: автора заявки удалили из базы, и ссылка на
+    него опустела. Это не сбой отправки, но и не доставка — возвращаем False,
+    чтобы вызывающий отметил это в логах и не считал, что человек получил
+    сообщение.
     """
+    if tg_id is None:
+        return False
     content = await render(session, key, **params)
     text = content.text + suffix
     try:

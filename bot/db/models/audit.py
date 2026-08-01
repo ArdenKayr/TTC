@@ -10,12 +10,16 @@ from bot.enums import ActorType
 
 
 class AuditLog(Base):
-    """Append-only: no application code path may UPDATE or DELETE rows here."""
+    """Журнал действий. Бот сюда только дописывает — ни один обработчик не
+    меняет и не удаляет эти строки. Единственное исключение — CRUD-панель, где
+    владелец правит и чистит журнал вручную и осознанно."""
 
     __tablename__ = "audit_log"
 
     log_id: Mapped[int] = mapped_column(sa.BigInteger, primary_key=True)
-    actor_tg_id: Mapped[int | None] = mapped_column(sa.ForeignKey("users.tg_id"), index=True)
+    actor_tg_id: Mapped[int | None] = mapped_column(
+        sa.ForeignKey("users.tg_id", ondelete="SET NULL"), index=True
+    )
     actor_type: Mapped[ActorType] = mapped_column(
         actor_type_enum, default=ActorType.ADMIN, server_default=ActorType.ADMIN.value
     )

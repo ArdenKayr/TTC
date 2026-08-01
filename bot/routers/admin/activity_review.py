@@ -84,10 +84,10 @@ async def cmd_activities(message: Message, session: AsyncSession) -> None:
         await message.answer(texts.ACT_LIST_EMPTY)
         return
     for activity in activities:
-        organizer = await session.get(User, activity.organizer_id)
-        organizer_label = (
-            activity_service.user_label(organizer) if organizer else str(activity.organizer_id)
+        organizer = (
+            await session.get(User, activity.organizer_id) if activity.organizer_id else None
         )
+        organizer_label = activity_service.user_label(organizer)
         await message.answer(
             texts.ACT_LIST_ITEM.format(
                 title=escape(activity.title),

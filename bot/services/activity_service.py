@@ -34,7 +34,10 @@ def parse_vote_options(raw: str) -> list[str] | None:
     return options
 
 
-def user_label(user: User) -> str:
+def user_label(user: User | None) -> str:
+    """Подпись человека. None — если запись о нём удалили из базы."""
+    if user is None:
+        return texts.USER_DELETED_LABEL
     username = f"@{user.username}" if user.username else f"id {user.tg_id}"
     return f"{escape(user.display_name)} ({username})"
 
@@ -90,7 +93,7 @@ def build_vote_card(
     )
 
 
-def _afisha_text(activity: Activity, organizer: User) -> str:
+def _afisha_text(activity: Activity, organizer: User | None) -> str:
     status_line = ""
     if activity.status == ActivityStatus.COMPLETED:
         status_line = texts.AFISHA_DONE_LINE
@@ -111,7 +114,8 @@ async def approve_activity(
     request = await session.get(ActivityRequest, request_id)
     if request is None or request.status != RequestStatus.PENDING:
         return False, texts.REVIEW_ALREADY_PROCESSED
-    author = await session.get(User, request.tg_id)
+    # Автора могли удалить из базы — тогда ссылка пустая, и одобрять некого.
+    author = await session.get(User, request.tg_id) if request.tg_id else None
     if author is None:
         return False, texts.USER_NOT_FOUND
 
@@ -314,7 +318,9 @@ async def finish_activity(
     activity = await session.get(Activity, activity_id)
     if activity is None or activity.status != ActivityStatus.ACTIVE:
         return False, texts.ACT_GONE
-    organizer = await session.get(User, activity.organizer_id)
+    organizer = (
+        await session.get(User, activity.organizer_id) if activity.organizer_id else None
+    )
 
     activity.status = ActivityStatus.CANCELLED if cancelled else ActivityStatus.COMPLETED
     if activity.afisha_message_id is not None and organizer is not None:

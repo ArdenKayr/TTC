@@ -71,11 +71,13 @@ class UniversityRequest(Base):
         server_default=RequestStatus.PENDING.value,
         index=True,
     )
-    processed_by: Mapped[int | None] = mapped_column(sa.ForeignKey("users.tg_id"))
+    processed_by: Mapped[int | None] = mapped_column(
+        sa.ForeignKey("users.tg_id", ondelete="SET NULL")
+    )
     processed_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     admin_comment: Mapped[str | None] = mapped_column(sa.Text)
     created_university_id: Mapped[int | None] = mapped_column(
-        sa.ForeignKey("universities.university_id")
+        sa.ForeignKey("universities.university_id", ondelete="SET NULL")
     )
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), server_default=sa.text("now()")
@@ -106,7 +108,9 @@ class AliasSuggestion(Base):
         server_default=RequestStatus.PENDING.value,
         index=True,
     )
-    processed_by: Mapped[int | None] = mapped_column(sa.ForeignKey("users.tg_id"))
+    processed_by: Mapped[int | None] = mapped_column(
+        sa.ForeignKey("users.tg_id", ondelete="SET NULL")
+    )
     processed_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), server_default=sa.text("now()")
