@@ -452,7 +452,16 @@ def _git_commit() -> str:
 def main() -> int:
     spec = json.loads(SPEC_PATH.read_text(encoding="utf-8"))
     facts = collect_code_facts()
-    OUT_PATH.write_text(render_html(spec, facts), encoding="utf-8")
+    try:
+        page = render_html(spec, facts)
+    except SpecError as exc:
+        print("Карта НЕ собрана — описание разошлось с кодом.\n")
+        print(f"  {exc}\n")
+        print("Что делать: поправьте docs/scenario-map.json под то, что сейчас")
+        print("в коде, и запустите сборку снова. Полную сверку показывает")
+        print("команда:  .venv\\Scripts\\python -m pytest tests/test_scenario_map.py")
+        return 1
+    OUT_PATH.write_text(page, encoding="utf-8")
     nodes = sum(len(area["nodes"]) for area in spec["areas"])
     print(f"Карта собрана: {OUT_PATH}")
     print(f"  точек входа: {nodes}, таблиц: {len(spec.get('tables', []))}")
