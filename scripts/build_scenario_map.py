@@ -356,10 +356,15 @@ GRAPH_CSS = """
 --k-message:#7038a8;--k-group_event:#c2185b;--k-auto:#8a8f99;}
 @media (prefers-color-scheme:dark){:root{--k-command:#6fa0ff;--k-reply_button:#4bd0a8;
 --k-inline_button:#f0a35e;--k-message:#c193f5;--k-group_event:#f47da8;--k-auto:#8a8f99;}}
-.views{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+.views{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
 button.v{border:1px solid var(--line);background:var(--card);color:var(--fg);
 border-radius:8px;padding:5px 15px;cursor:pointer;font-size:13.5px;font-weight:600}
 button.v.on{background:var(--fg);border-color:var(--fg);color:var(--bg)}
+/* Свой класс, а не «.f»: по «.f» ищутся кнопки выбора роли, и общий класс
+   навесил бы на эти кнопки ещё и смену роли. */
+button.opt{border:1px solid var(--line);background:var(--card);color:var(--fg);
+border-radius:999px;padding:5px 13px;cursor:pointer;font-size:13px;margin-left:4px}
+button.opt.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .zoom{margin-left:auto;color:var(--muted);font-size:12.5px;display:flex;gap:4px;align-items:center}
 .zoom button{width:26px;height:26px;border:1px solid var(--line);background:var(--card);
 color:var(--fg);border-radius:6px;cursor:pointer;font-size:14px;line-height:1}
@@ -370,16 +375,27 @@ color:var(--fg);border-radius:6px;cursor:pointer;font-size:14px;line-height:1}
 .gpanel h3 span{font-weight:400;color:var(--muted);font-size:12.5px}
 .gwrap{overflow:auto;max-height:78vh;border:1px solid var(--line);border-radius:10px;
 background:var(--card);padding:4px}
-.gn rect.box{fill:var(--card);stroke:var(--line);stroke-width:1.5}
+.gn rect.box{fill:var(--card);stroke:var(--line);stroke-width:1.4}
 .gn text.lbl{fill:var(--fg);font-size:12.5px;font-family:inherit}
-.gn text.ico{font-size:12px;fill:var(--muted)}
+.gn text.ico{font-size:11px;fill:var(--muted)}
+.gn text.caret{font-size:11px;fill:var(--muted)}
 .gn{cursor:pointer}
-.gn:hover rect.box{stroke:var(--accent);stroke-width:2.5}
-.gn.iso rect.box{stroke-dasharray:4 3}
+.gn:hover rect.box{stroke:var(--accent);stroke-width:2.2}
+.gn.root rect.box{stroke:var(--muted)}
+.gn.faded{opacity:.13}
 .gn.dim{opacity:.18}
-.ge{fill:none;stroke:var(--line);stroke-width:1.6}
+.gn g.fold{cursor:pointer}
+.gn g.fold:hover text.caret{fill:var(--accent)}
+/* Ветка дерева: единственная линия, входящая в узел. */
+.ge{fill:none;stroke:var(--line);stroke-width:1.5}
 .ge.on{stroke:var(--accent);stroke-width:2.4}
-.ge.dim{opacity:.15}
+.ge.faded{opacity:.12}
+/* Возврат или повторный вход — по умолчанию не рисуется, чтобы не путать. */
+.gx{fill:none;stroke:var(--notify);stroke-width:1.4;stroke-dasharray:5 4;opacity:0;
+pointer-events:none}
+.gx.show{opacity:.4}
+.gx.on{opacity:1;stroke-width:2.2}
+.gx.faded{opacity:.08}
 .gtip{position:fixed;z-index:50;max-width:440px;pointer-events:none;
 background:var(--card);border:1px solid var(--accent);border-radius:10px;
 padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.22);font-size:14px}
@@ -392,12 +408,15 @@ padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.22);font-size:14px}
 # то, что эта роль реально видит, без пустых дыр от скрытых узлов.
 GRAPH_JS = """
 const NS='http://www.w3.org/2000/svg';
-const NW=206,NH=46,GAPX=88,GAPY=18,PAD=16;
+const NW=206,NH=26,COLW=236,ROWH=34,PAD=14;
 const ICONS={command:'⌨',reply_button:'▭',inline_button:'◻',
   message:'✎',group_event:'👥',auto:'⚙'};
 const host=document.getElementById('graph-areas');
 const tip=document.getElementById('gtip');
+const panels=new Map();
+const folds=new Map();   /* область -> свёрнутые узлы */
 let zoom=1;
+let showExtra=false;
 
 function el(name,attrs,parent){
   const e=document.createElementNS(NS,name);
@@ -407,78 +426,94 @@ function el(name,attrs,parent){
 }
 function short(s,max){return s.length>max?s.slice(0,max-1)+'…':s;}
 function seen(n,r){return r==='all'||n.r.indexOf(r)>=0||n.r.indexOf('any')>=0;}
+function foldsOf(key){if(!folds.has(key))folds.set(key,new Set());return folds.get(key);}
 
-/* Раскладывает область по слоям: слой узла — на каком шаге от начала цепочки
-   человек до него добирается. Считается обходом в ширину, а не «правее всех
-   предков»: в боте полно колец (меню → раздел → «Назад» → меню), и от них
-   раскладка по предкам уезжает в бесконечность. Стрелка «Назад» при таком
-   счёте честно рисуется стрелкой, идущей назад. */
-function place(nodes){
+/* Превращает область в дерево. Ключевое решение всей схемы: у узла остаётся
+   ровно один «родитель» — тот, от кого человек попадает сюда первым. Все
+   остальные переходы (а это больше половины: «⬅️ Назад», повторные заходы в
+   уже показанный раздел) откладываются в extra и по умолчанию не рисуются.
+   Если рисовать их все, получается клубок ниток, в котором не проследить ни
+   одну связь. */
+function model(nodes){
   const alive=new Set(nodes.map(n=>n.id));
-  const edges=[];
-  nodes.forEach(n=>(n.n||[]).forEach(t=>{if(alive.has(t))edges.push([n.id,t]);}));
+  const byId=new Map(nodes.map(n=>[n.id,n]));
   const out=new Map(nodes.map(n=>[n.id,[]]));
-  const parents=new Map(nodes.map(n=>[n.id,[]]));
-  const deg=new Map(nodes.map(n=>[n.id,0]));
-  edges.forEach(([a,b])=>{
-    out.get(a).push(b);parents.get(b).push(a);
-    deg.set(a,deg.get(a)+1);deg.set(b,deg.get(b)+1);
-  });
+  const indeg=new Map(nodes.map(n=>[n.id,0]));
+  nodes.forEach(n=>(n.n||[]).forEach(t=>{
+    if(alive.has(t)){out.get(n.id).push(t);indeg.set(t,indeg.get(t)+1);}
+  }));
 
-  const layer=new Map();
+  const kids=new Map(nodes.map(n=>[n.id,[]]));
+  const parent=new Map();
+  const extra=[];
+  const took=new Set();
+  const roots=[];
   const queue=[];
-  nodes.forEach(n=>{if(!parents.get(n.id).length){layer.set(n.id,0);queue.push(n.id);}});
-  /* Вся область может оказаться замкнутым кольцом без единой точки входа —
-     тогда началом считаем самый разветвлённый узел. */
-  if(!queue.length&&nodes.length){
-    let seed=nodes[0];
-    nodes.forEach(n=>{if(out.get(n.id).length>out.get(seed.id).length)seed=n;});
-    layer.set(seed.id,0);queue.push(seed.id);
-  }
-  for(let i=0;i<queue.length;i++){
-    const from=queue[i];
-    for(const to of out.get(from)){
-      if(!layer.has(to)){layer.set(to,layer.get(from)+1);queue.push(to);}
-    }
-  }
-  nodes.forEach(n=>{if(!layer.has(n.id))layer.set(n.id,0);});
+  nodes.forEach(n=>{if(!indeg.get(n.id)){roots.push(n.id);took.add(n.id);queue.push(n.id);}});
 
-  const rows=[];
-  nodes.forEach(n=>{const L=layer.get(n.id);(rows[L]=rows[L]||[]).push(n);});
-  const pos=new Map();
-  rows.forEach((row,L)=>{
-    if(!row)return;
-    if(L===0){
-      /* Одиночки — вниз колонки, чтобы не разрывать реальные цепочки. */
-      row.sort((x,y)=>(deg.get(x.id)?0:1)-(deg.get(y.id)?0:1));
-    }else{
-      /* Узел встаёт напротив тех, кто на него ссылается: меньше пересечений. */
-      const mid=n=>{
-        const ps=parents.get(n.id).map(p=>pos.get(p)).filter(Boolean);
-        return ps.length?ps.reduce((s,p)=>s+p.y,0)/ps.length:1e9;
-      };
-      row.sort((x,y)=>mid(x)-mid(y));
+  let i=0;
+  for(;;){
+    for(;i<queue.length;i++){
+      const from=queue[i];
+      for(const to of out.get(from)){
+        if(took.has(to)){extra.push([from,to]);}
+        else{took.add(to);parent.set(to,from);kids.get(from).push(to);queue.push(to);}
+      }
     }
-    row.forEach((n,i)=>pos.set(n.id,{x:PAD+L*(NW+GAPX),y:PAD+i*(NH+GAPY)}));
-  });
-  const sizes=rows.filter(Boolean).map(r=>r.length);
-  const wide=sizes.length?Math.max.apply(null,sizes):1;
-  return {edges:edges,pos:pos,deg:deg,
-          w:PAD*2+(rows.length-1)*(NW+GAPX)+NW,
-          h:PAD*2+(wide-1)*(NH+GAPY)+NH};
+    const left=nodes.filter(n=>!took.has(n.id));
+    if(!left.length)break;
+    /* Остался замкнутый круг без входа — начинаем с самого разветвлённого. */
+    let seed=left[0];
+    left.forEach(n=>{if(out.get(n.id).length>out.get(seed.id).length)seed=n;});
+    roots.push(seed.id);took.add(seed.id);queue.push(seed.id);
+  }
+  /* Одиночные точки — вниз списка, чтобы не разрывать настоящие цепочки. */
+  roots.sort((a,b)=>(kids.get(b).length?1:0)-(kids.get(a).length?1:0));
+  return {byId:byId,roots:roots,kids:kids,parent:parent,extra:extra};
+}
+
+/* Раскладка деревом: каждый узел занимает свою строку, потомки идут сразу под
+   родителем. Ветви при этом физически не могут пересечься. */
+function layout(m,fold){
+  const pos=new Map();
+  const rows=[];
+  let row=0,deep=0;
+  function walk(id,depth){
+    pos.set(id,{x:PAD+depth*COLW,y:PAD+row*ROWH,d:depth});
+    rows.push(id);row++;
+    if(depth>deep)deep=depth;
+    if(fold.has(id))return;
+    for(const kid of m.kids.get(id))walk(kid,depth+1);
+  }
+  m.roots.forEach(id=>walk(id,0));
+  return {pos:pos,rows:rows,
+          w:PAD*2+deep*COLW+NW,
+          h:PAD*2+Math.max(row,1)*ROWH};
+}
+
+function moveTip(ev){
+  const w=tip.offsetWidth,h=tip.offsetHeight;
+  let x=ev.clientX+18,y=ev.clientY+16;
+  if(x+w>innerWidth-10)x=Math.max(10,ev.clientX-w-18);
+  if(y+h>innerHeight-10)y=Math.max(10,innerHeight-h-10);
+  tip.style.left=x+'px';tip.style.top=y+'px';
 }
 
 function drawArea(area,role){
   const nodes=area.nodes.filter(n=>seen(n,role));
   if(!nodes.length)return null;
-  const L=place(nodes);
+  const m=model(nodes);
+  const fold=foldsOf(area.key);
+  const L=layout(m,fold);
 
   const box=document.createElement('figure');
   box.className='gpanel';
   const head=document.createElement('h3');
-  head.innerHTML='<b></b><span></span>';
-  head.querySelector('b').textContent=area.label;
-  head.querySelector('span').textContent=nodes.length+' шт. · '+L.edges.length+' переходов';
+  const title=document.createElement('b');title.textContent=area.label;
+  const note=document.createElement('span');
+  note.textContent=nodes.length+' точек · '+m.roots.length+' начал · '
+    +m.extra.length+' возвратов скрыто';
+  head.appendChild(title);head.appendChild(note);
   box.appendChild(head);
 
   const wrap=document.createElement('div');
@@ -488,45 +523,83 @@ function drawArea(area,role){
     markerWidth:6,markerHeight:6,orient:'auto-start-reverse'},el('defs',{},svg));
   el('path',{d:'M0,0 L10,5 L0,10 z',fill:'currentColor'},mid);
 
-  for(const [a,b] of L.edges){
-    const p=L.pos.get(a),q=L.pos.get(b);
-    const x1=p.x+NW,y1=p.y+NH/2,x2=q.x,y2=q.y+NH/2;
-    const bend=Math.max(34,(x2-x1)/2);
-    el('path',{class:'ge','data-a':a,'data-b':b,'marker-end':'url(#arw-'+area.key+')',
-      d:'M'+x1+','+y1+' C'+(x1+bend)+','+y1+' '+(x2-bend)+','+y2+' '+x2+','+y2},svg);
+  /* Ветки: вниз по колонке родителя, затем вправо в левый край потомка. */
+  L.rows.forEach(id=>{
+    const up=m.parent.get(id);
+    if(up===undefined||!L.pos.has(up))return;
+    const a=L.pos.get(up),b=L.pos.get(id);
+    const gut=a.x+16;
+    el('path',{class:'ge','data-a':up,'data-b':id,'marker-end':'url(#arw-'+area.key+')',
+      d:'M'+gut+','+(a.y+NH)+' V'+(b.y+NH/2)+' H'+b.x},svg);
+  });
+
+  /* Возвраты: дугой справа, чтобы не лезть в область веток. */
+  m.extra.forEach(pair=>{
+    if(!L.pos.has(pair[0])||!L.pos.has(pair[1]))return;
+    const p=L.pos.get(pair[0]),q=L.pos.get(pair[1]);
+    const x1=p.x+NW,y1=p.y+NH/2,x2=q.x+NW,y2=q.y+NH/2;
+    const bow=Math.min(180,Math.max(46,Math.abs(y2-y1)/3));
+    el('path',{class:'gx'+(showExtra?' show':''),'data-a':pair[0],'data-b':pair[1],
+      'marker-end':'url(#arw-'+area.key+')',
+      d:'M'+x1+','+y1+' C'+(x1+bow)+','+y1+' '+(x2+bow)+','+y2+' '+x2+','+y2},svg);
+  });
+
+  function focus(id){
+    const card=document.getElementById(id);
+    if(card){tip.innerHTML=card.innerHTML;tip.classList.remove('hidden');}
+    /* Цепочка вверх до начала — «как сюда вообще попадают». */
+    const chain=new Set([id]);
+    let up=m.parent.get(id);
+    while(up!==undefined&&!chain.has(up)){chain.add(up);up=m.parent.get(up);}
+    const keep=new Set(chain);
+    m.kids.get(id).forEach(k=>keep.add(k));
+    m.extra.forEach(pair=>{
+      if(pair[0]===id)keep.add(pair[1]);
+      if(pair[1]===id)keep.add(pair[0]);
+    });
+    svg.querySelectorAll('.gn').forEach(g=>g.classList.toggle('faded',!keep.has(g.dataset.id)));
+    svg.querySelectorAll('.ge').forEach(e=>{
+      const lit=chain.has(e.dataset.b)||e.dataset.a===id;
+      e.classList.toggle('on',lit);e.classList.toggle('faded',!lit);
+    });
+    svg.querySelectorAll('.gx').forEach(e=>{
+      const lit=e.dataset.a===id||e.dataset.b===id;
+      e.classList.toggle('on',lit);e.classList.toggle('faded',!lit&&showExtra);
+    });
+  }
+  function blur(){
+    tip.classList.add('hidden');
+    svg.querySelectorAll('.gn').forEach(g=>g.classList.remove('faded'));
+    svg.querySelectorAll('.ge,.gx').forEach(e=>e.classList.remove('on','faded'));
   }
 
-  nodes.forEach(n=>{
-    const p=L.pos.get(n.id);
-    const g=el('g',{class:'gn'+(L.deg.get(n.id)?'':' iso'),'data-id':n.id,
+  L.rows.forEach(id=>{
+    const n=m.byId.get(id),p=L.pos.get(id);
+    const g=el('g',{class:'gn'+(m.parent.has(id)?'':' root'),'data-id':id,
       transform:'translate('+p.x+','+p.y+')'},svg);
-    el('rect',{class:'box',width:NW,height:NH,rx:9},g);
-    el('rect',{width:4,height:NH-16,x:0,y:8,rx:2,fill:'var(--k-'+n.k+')'},g);
-    const ico=el('text',{class:'ico',x:14,y:NH/2+4},g);
+    el('rect',{class:'box',width:NW,height:NH,rx:7},g);
+    el('rect',{width:3,height:NH-10,x:0,y:5,rx:1.5,fill:'var(--k-'+n.k+')'},g);
+    const ico=el('text',{class:'ico',x:12,y:NH/2+4},g);
     ico.textContent=ICONS[n.k]||'•';
-    const lbl=el('text',{class:'lbl',x:32,y:NH/2+4.5},g);
+    const lbl=el('text',{class:'lbl',x:27,y:NH/2+4},g);
     lbl.textContent=short(n.t,24);
 
-    g.addEventListener('mouseenter',()=>{
-      const card=document.getElementById(n.id);
-      if(card){tip.innerHTML=card.innerHTML;tip.classList.remove('hidden');}
-      svg.querySelectorAll('.ge').forEach(e=>{
-        const touch=e.dataset.a===n.id||e.dataset.b===n.id;
-        e.classList.toggle('on',touch);e.classList.toggle('dim',!touch);
+    if(m.kids.get(id).length){
+      const fg=el('g',{class:'fold'},g);
+      el('rect',{x:-19,y:0,width:19,height:NH,fill:'none','pointer-events':'all'},fg);
+      const car=el('text',{class:'caret',x:-15,y:NH/2+4},fg);
+      car.textContent=fold.has(id)?'▸':'▾';
+      fg.addEventListener('click',ev=>{
+        ev.stopPropagation();
+        if(fold.has(id))fold.delete(id);else fold.add(id);
+        redrawArea(area,role);
       });
-    });
-    g.addEventListener('mousemove',ev=>{
-      const w=tip.offsetWidth,h=tip.offsetHeight;
-      let x=ev.clientX+18,y=ev.clientY+16;
-      if(x+w>innerWidth-10)x=ev.clientX-w-18;
-      if(y+h>innerHeight-10)y=Math.max(10,innerHeight-h-10);
-      tip.style.left=x+'px';tip.style.top=y+'px';
-    });
-    g.addEventListener('mouseleave',()=>{
-      tip.classList.add('hidden');
-      svg.querySelectorAll('.ge').forEach(e=>e.classList.remove('on','dim'));
-    });
-    g.addEventListener('click',()=>{showView('list');location.hash='#'+n.id;});
+    }
+
+    g.addEventListener('mouseenter',()=>focus(id));
+    g.addEventListener('mousemove',moveTip);
+    g.addEventListener('mouseleave',blur);
+    g.addEventListener('click',()=>{showView('list');location.hash='#'+id;});
   });
 
   wrap.appendChild(svg);
@@ -534,14 +607,27 @@ function drawArea(area,role){
   return box;
 }
 
+function redrawArea(area,role){
+  const old=panels.get(area.key);
+  const fresh=drawArea(area,role);
+  if(!old||!fresh)return;
+  const keep=old.querySelector('.gwrap');
+  const left=keep.scrollLeft,top=keep.scrollTop;
+  host.replaceChild(fresh,old);
+  panels.set(area.key,fresh);
+  const now=fresh.querySelector('.gwrap');
+  now.scrollLeft=left;now.scrollTop=top;
+  markSearch();
+}
+
 function renderGraph(){
   host.innerHTML='';
-  let drawn=0;
+  panels.clear();
   GRAPH.areas.forEach(area=>{
     const panel=drawArea(area,role);
-    if(panel){host.appendChild(panel);drawn++;}
+    if(panel){host.appendChild(panel);panels.set(area.key,panel);}
   });
-  if(!drawn){
+  if(!panels.size){
     host.innerHTML='<p class="gempty">Для этой роли на карте нет ни одной точки входа.</p>';
   }
   markSearch();
@@ -567,10 +653,40 @@ function setZoom(step){
 }
 document.getElementById('zin').addEventListener('click',()=>setZoom(.15));
 document.getElementById('zout').addEventListener('click',()=>setZoom(-.15));
+
+const xbtn=document.getElementById('xtoggle');
+xbtn.addEventListener('click',()=>{
+  showExtra=!showExtra;
+  xbtn.classList.toggle('on',showExtra);
+  document.querySelectorAll('.gx').forEach(e=>e.classList.toggle('show',showExtra));
+});
+
+/* Свернуть — оставить только начала цепочек и первый шаг после них. */
+const fbtn=document.getElementById('foldall');
+fbtn.addEventListener('click',()=>{
+  let any=false;
+  folds.forEach(set=>{if(set.size)any=true;});
+  GRAPH.areas.forEach(area=>{
+    const set=foldsOf(area.key);
+    set.clear();
+    if(any)return;
+    const nodes=area.nodes.filter(n=>seen(n,role));
+    if(!nodes.length)return;
+    const m=model(nodes);
+    nodes.forEach(n=>{
+      if(m.kids.get(n.id).length&&m.parent.has(n.id))set.add(n.id);
+    });
+  });
+  fbtn.classList.toggle('on',!any);
+  fbtn.textContent=any?'Свернуть ветки':'Развернуть ветки';
+  renderGraph();
+});
 """
 
 JS = """
-const filters=document.querySelectorAll('button.f');
+/* Только кнопки с явно заданной ролью: случайно попавшая сюда чужая кнопка
+   выставила бы роль в undefined и оставила на странице почти пустую схему. */
+const filters=document.querySelectorAll('button.f[data-role]');
 const views=document.querySelectorAll('button.v');
 const search=document.getElementById('q');
 let role='all';
@@ -648,7 +764,10 @@ def _kind_legend() -> str:
         items.append(
             f'<span><i style="background:var(--k-{esc(kind)})"></i>{icon} {esc(label)}</span>'
         )
-    items.append('<span><i style="border:1px dashed var(--muted)"></i>без связей — отдельная точка</span>')
+    items.append(
+        '<span><i style="background:var(--notify)"></i>пунктир — возврат «Назад» '
+        "или повторный вход</span>"
+    )
     return "".join(items)
 
 
@@ -699,6 +818,8 @@ def render_html(spec: dict, facts: CodeFacts) -> str:
   <div class="views">
     <button class="v on" data-view="graph">Схема</button>
     <button class="v" data-view="list">Список</button>
+    <button class="opt" id="foldall" title="Показать только начала цепочек">Свернуть ветки</button>
+    <button class="opt" id="xtoggle" title="Показать пунктиром возвраты «Назад» и повторные входы">Показать возвраты</button>
     <span class="zoom" id="zoombox">масштаб
       <button id="zout" title="Мельче">−</button><button id="zin" title="Крупнее">+</button></span>
   </div>
@@ -708,10 +829,16 @@ def render_html(spec: dict, facts: CodeFacts) -> str:
 
 <div id="graph-view">
 <p class="legend">Выберите роль — и схема покажет ровно то, что видит человек с этой ролью.
-Каждый прямоугольник — точка входа, стрелка — куда человек попадает следующим шагом.
-<b>Наведите на прямоугольник</b>, чтобы прочитать подробности, и нажмите на него,
-чтобы открыть эту точку в списке. Схема разбита на области: переходов между областями нет,
-каждая живёт своей цепочкой.</p>
+Схема читается как дерево: слева начало цепочки, вправо — куда человек уходит дальше.
+В каждый прямоугольник входит <b>ровно одна линия</b> — от того шага, с которого сюда попадают
+впервые, поэтому ветки никогда не пересекаются и любую цепочку видно целиком.<br>
+<b>Наведите на прямоугольник</b> — подсветится весь путь от начала до него и его продолжения,
+а рядом появятся подробности. <b>Нажмите</b> — откроется полное описание в списке.
+Треугольник слева сворачивает ветку.<br>
+<b>Возвраты спрятаны намеренно.</b> Больше половины всех переходов бота — это «⬅️ Назад»
+и повторные заходы в уже показанный раздел; если рисовать их вместе с ветками, схема
+превращается в клубок. Они появляются пунктиром, когда наводишь на узел, а кнопка
+«Показать возвраты» включает их все сразу.</p>
 <div class="glegend">{_kind_legend()}</div>
 <div id="graph-areas"></div>
 </div>

@@ -203,6 +203,30 @@ def test_map_builds(spec: dict, facts) -> None:
     assert "карта сценариев" in page.lower()
 
 
+def test_role_buttons_are_not_confused_with_tools(spec: dict, facts) -> None:
+    """Кнопки выбора роли ищутся на странице по классу «f».
+
+    Однажды этот класс достался кнопкам «Свернуть ветки» и «Показать
+    возвраты» — и нажатие на них выставляло роль в «ничто», после чего схема
+    показывала почти пустоту. Проверяем, что по этому селектору не попадает
+    ничего лишнего.
+    """
+    import re
+
+    from scripts.build_scenario_map import render_html
+
+    page = render_html(spec, facts)
+    strays = [
+        tag
+        for tag in re.findall(r"<button[^>]*>", page)
+        if re.search(r'class="[^"]*\bf\b[^"]*"', tag) and "data-role=" not in tag
+    ]
+    assert not strays, (
+        "У этих кнопок класс «f», но не задана роль — они попадут в фильтр ролей "
+        f"и сломают его: {strays}"
+    )
+
+
 def test_graph_shows_every_node(spec: dict, nodes: list[dict], facts) -> None:
     """Визуальная схема должна показывать всю карту, а не её часть.
 
