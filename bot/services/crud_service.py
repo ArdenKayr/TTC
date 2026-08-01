@@ -312,6 +312,27 @@ def parse_value(col: sa.Column, raw: str) -> Any:
     return raw
 
 
+async def load_all_fields(session: AsyncSession, obj: Any) -> None:
+    """Дочитывает поля, значение которых проставила сама база.
+
+    После сохранения SQLAlchemy помечает «непрочитанными» те колонки, которые
+    вычислила база: ``updated_at`` с ``onupdate=now()``, ``created_at`` со
+    ``server_default``. Значение там уже новое, но коду оно неизвестно.
+
+    Опасно здесь то, что за ним библиотека сходит **незаметно** — прямо в
+    момент чтения атрибута (``obj.updated_at``). В асинхронном SQLAlchemy так
+    нельзя: скрытый запрос вне ``await`` падает с ``MissingGreenlet``, и
+    карточка записи не рисуется вовсе. Поэтому перед показом дочитываем всё
+    недостающее явно.
+
+    Список полей берётся у самого объекта, а не из перечня таблиц: появится
+    новая колонка со значением от базы — она попадёт сюда сама.
+    """
+    unloaded = sa.inspect(obj).unloaded
+    if unloaded:
+        await session.refresh(obj, list(unloaded))
+
+
 def render_detail(spec: TableSpec, obj: Any, header: str) -> str:
     from bot import texts  # локально: texts импортирует enums, а не наоборот
 

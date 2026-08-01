@@ -147,8 +147,13 @@ async def _list_view(
 
 
 async def _detail_view(
-    spec: crud_service.TableSpec, obj, page: int, db_user: User
+    spec: crud_service.TableSpec, obj, page: int, db_user: User, session: AsyncSession
 ) -> tuple[str, InlineKeyboardMarkup]:
+    # Карточка читает все поля подряд. Если запись только что сохранили, часть
+    # значений проставила база и они ещё не прочитаны — дочитываем их здесь,
+    # пока мы внутри await. Иначе чтение поля полезет в базу незаметно и
+    # уронит обработчик (MissingGreenlet).
+    await crud_service.load_all_fields(session, obj)
     pk_name = crud_service.pk_col(spec).key
     pk = str(getattr(obj, pk_name))
     header = texts.CRUD_ROW_HEADER.format(title=spec.title, pk=pk)
@@ -254,7 +259,7 @@ async def cb_row(
     if obj is None:
         await callback.answer(texts.CRUD_NOT_FOUND, show_alert=True)
         return
-    text, kb = await _detail_view(spec, obj, callback_data.page, db_user)
+    text, kb = await _detail_view(spec, obj, callback_data.page, db_user, session)
     await callback.message.edit_text(text, reply_markup=kb)
     await callback.answer()
 
@@ -357,7 +362,7 @@ async def crud_new_value(
         return
     await state.clear()
     obj = await crud_service.get_row(session, spec, data["pk"])
-    text, kb = await _detail_view(spec, obj, 0, db_user)
+    text, kb = await _detail_view(spec, obj, 0, db_user, session)
     await message.answer(text, reply_markup=kb)
 
 
@@ -514,7 +519,7 @@ async def crud_create_value(
     )
     await session.commit()
     await message.answer(texts.CRUD_CREATED)
-    text, kb = await _detail_view(spec, obj, 0, db_user)
+    text, kb = await _detail_view(spec, obj, 0, db_user, session)
     await message.answer(text, reply_markup=kb)
 
 
