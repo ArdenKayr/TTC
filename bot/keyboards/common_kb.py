@@ -24,6 +24,7 @@ MENU_BUTTON_TEXTS = {
     texts.BTN.ADMIN_PANEL_USERS,
     texts.BTN.ADMIN_PANEL_CRUD,
     texts.BTN.ADMIN_PANEL_SCENARIOS,
+    texts.BTN.ADMIN_PANEL_CONTENT,
     texts.BTN.ADMIN_PANEL_LOGS,
     texts.BTN.ADMIN_PANEL_UPDATES,
     texts.BTN.ADMIN_PANEL_USER_MODE,
@@ -90,22 +91,24 @@ def admin_panel_kb(is_owner: bool) -> ReplyKeyboardMarkup:
             KeyboardButton(text=texts.BTN.ADMIN_PANEL_CRUD),
         ]
     ]
+    # «Сценарии» и «Разделы» — соседи не случайно: это два редактора текстов
+    # бота. Сценарии — что бот отвечает на действия, Разделы — страницы меню
+    # «Информация». Раньше вторые открывались только командой /content, и найти
+    # их, не зная команду, было нельзя.
+    rows.append(
+        [
+            KeyboardButton(text=texts.BTN.ADMIN_PANEL_SCENARIOS),
+            KeyboardButton(text=texts.BTN.ADMIN_PANEL_CONTENT),
+        ]
+    )
     if is_owner:
         rows.append(
             [
-                KeyboardButton(text=texts.BTN.ADMIN_PANEL_SCENARIOS),
                 KeyboardButton(text=texts.BTN.ADMIN_PANEL_LOGS),
                 KeyboardButton(text=texts.BTN.ADMIN_PANEL_UPDATES),
             ]
         )
-        rows.append([KeyboardButton(text=texts.BTN.ADMIN_PANEL_USER_MODE)])
-    else:
-        rows.append(
-            [
-                KeyboardButton(text=texts.BTN.ADMIN_PANEL_SCENARIOS),
-                KeyboardButton(text=texts.BTN.ADMIN_PANEL_USER_MODE),
-            ]
-        )
+    rows.append([KeyboardButton(text=texts.BTN.ADMIN_PANEL_USER_MODE)])
     return _reply(rows)
 
 

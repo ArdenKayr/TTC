@@ -1,6 +1,6 @@
 from aiogram import F, Router
 from aiogram.enums import ChatType
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +25,20 @@ async def cmd_content(message: Message, state: FSMContext) -> None:
     await message.answer(
         texts.CONTENT_PICK, reply_markup=content_slots_kb(content_service.SLOTS.values())
     )
+
+
+@router.message(
+    F.chat.type == ChatType.PRIVATE,
+    StateFilter(None),
+    F.text == texts.BTN.ADMIN_PANEL_CONTENT,
+)
+async def btn_content(message: Message, state: FSMContext) -> None:
+    """Тот же список, что у /content, но кнопкой из панели «Админство».
+
+    Команду нужно было знать наизусть: в панели её не было, и редактор
+    страниц раздела «Информация» выглядел так, будто его вовсе нет.
+    """
+    await cmd_content(message, state)
 
 
 @router.callback_query(ContentSlotCB.filter())

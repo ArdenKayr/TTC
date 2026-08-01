@@ -38,6 +38,7 @@ class BTN:
     ADMIN_PANEL_USERS = "👤 Пользователи"
     ADMIN_PANEL_CRUD = "🗄 CRUD"
     ADMIN_PANEL_SCENARIOS = "🧩 Сценарии"
+    ADMIN_PANEL_CONTENT = "📄 Разделы"
     ADMIN_PANEL_LOGS = "📜 Логи"
     ADMIN_PANEL_UPDATES = "📢 Обновления"
     ADMIN_PANEL_USER_MODE = "⬅️ Пользователь"
