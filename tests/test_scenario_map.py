@@ -201,3 +201,33 @@ def test_map_builds(spec: dict, facts) -> None:
     page = render_html(spec, facts)
     assert page.startswith("<!doctype html>")
     assert "карта сценариев" in page.lower()
+
+
+def test_graph_shows_every_node(spec: dict, nodes: list[dict], facts) -> None:
+    """Визуальная схема должна показывать всю карту, а не её часть.
+
+    Схема рисуется в браузере по данным, вшитым в страницу. Если при правке
+    генератора часть узлов перестанет туда попадать, на схеме молча исчезнут
+    целые ветки — заметить это глазами почти невозможно, поэтому проверяем.
+    """
+    from scripts.build_scenario_map import _graph_payload
+
+    payload = _graph_payload(spec, facts)
+    assert "</" not in payload, (
+        "В данных схемы есть последовательность «</» — она закроет тег <script> "
+        "раньше времени и страница сломается."
+    )
+
+    data = json.loads(payload.replace("<\\/", "</"))
+    drawn = [node for area in data["areas"] for node in area["nodes"]]
+
+    assert {n["id"] for n in drawn} == {n["id"] for n in nodes}, (
+        "Набор узлов на схеме разошёлся со списком карты."
+    )
+
+    nameless = [n["id"] for n in drawn if not n.get("t")]
+    assert not nameless, f"Узлы схемы без подписи: {nameless}"
+
+    known = {n["id"] for n in drawn}
+    dangling = [(n["id"], t) for n in drawn for t in n["n"] if t not in known]
+    assert not dangling, f"Стрелки схемы ведут в никуда: {dangling}"

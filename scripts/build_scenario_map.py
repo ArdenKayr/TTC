@@ -349,10 +349,243 @@ code{font-family:ui-monospace,Consolas,monospace;font-size:11.5px}
 @media print{.controls{position:static}.node{break-inside:avoid}}
 """
 
+# Стили визуальной схемы. Вынесены отдельно от стилей списка, чтобы правки
+# схемы не задевали то, что уже работает.
+GRAPH_CSS = """
+:root{--k-command:#2d6cdf;--k-reply_button:#0d7a5f;--k-inline_button:#b0561a;
+--k-message:#7038a8;--k-group_event:#c2185b;--k-auto:#8a8f99;}
+@media (prefers-color-scheme:dark){:root{--k-command:#6fa0ff;--k-reply_button:#4bd0a8;
+--k-inline_button:#f0a35e;--k-message:#c193f5;--k-group_event:#f47da8;--k-auto:#8a8f99;}}
+.views{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+button.v{border:1px solid var(--line);background:var(--card);color:var(--fg);
+border-radius:8px;padding:5px 15px;cursor:pointer;font-size:13.5px;font-weight:600}
+button.v.on{background:var(--fg);border-color:var(--fg);color:var(--bg)}
+.zoom{margin-left:auto;color:var(--muted);font-size:12.5px;display:flex;gap:4px;align-items:center}
+.zoom button{width:26px;height:26px;border:1px solid var(--line);background:var(--card);
+color:var(--fg);border-radius:6px;cursor:pointer;font-size:14px;line-height:1}
+.glegend{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0 16px;font-size:12.5px;color:var(--muted)}
+.glegend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.gpanel{margin:0 0 22px}
+.gpanel h3{font-size:15px;margin:0 0 8px;display:flex;align-items:baseline;gap:8px}
+.gpanel h3 span{font-weight:400;color:var(--muted);font-size:12.5px}
+.gwrap{overflow:auto;max-height:78vh;border:1px solid var(--line);border-radius:10px;
+background:var(--card);padding:4px}
+.gn rect.box{fill:var(--card);stroke:var(--line);stroke-width:1.5}
+.gn text.lbl{fill:var(--fg);font-size:12.5px;font-family:inherit}
+.gn text.ico{font-size:12px;fill:var(--muted)}
+.gn{cursor:pointer}
+.gn:hover rect.box{stroke:var(--accent);stroke-width:2.5}
+.gn.iso rect.box{stroke-dasharray:4 3}
+.gn.dim{opacity:.18}
+.ge{fill:none;stroke:var(--line);stroke-width:1.6}
+.ge.on{stroke:var(--accent);stroke-width:2.4}
+.ge.dim{opacity:.15}
+.gtip{position:fixed;z-index:50;max-width:440px;pointer-events:none;
+background:var(--card);border:1px solid var(--accent);border-radius:10px;
+padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.22);font-size:14px}
+.gtip .row b{min-width:104px}
+.gempty{color:var(--muted);font-size:13.5px;padding:14px}
+"""
+
+# Отрисовка схемы. Раскладка считается в браузере, а не при сборке: так страница
+# остаётся одним самодостаточным файлом, а смена роли перестраивает картинку под
+# то, что эта роль реально видит, без пустых дыр от скрытых узлов.
+GRAPH_JS = """
+const NS='http://www.w3.org/2000/svg';
+const NW=206,NH=46,GAPX=88,GAPY=18,PAD=16;
+const ICONS={command:'⌨',reply_button:'▭',inline_button:'◻',
+  message:'✎',group_event:'👥',auto:'⚙'};
+const host=document.getElementById('graph-areas');
+const tip=document.getElementById('gtip');
+let zoom=1;
+
+function el(name,attrs,parent){
+  const e=document.createElementNS(NS,name);
+  for(const k in attrs) e.setAttribute(k,attrs[k]);
+  if(parent) parent.appendChild(e);
+  return e;
+}
+function short(s,max){return s.length>max?s.slice(0,max-1)+'…':s;}
+function seen(n,r){return r==='all'||n.r.indexOf(r)>=0||n.r.indexOf('any')>=0;}
+
+/* Раскладывает область по слоям: слой узла — на каком шаге от начала цепочки
+   человек до него добирается. Считается обходом в ширину, а не «правее всех
+   предков»: в боте полно колец (меню → раздел → «Назад» → меню), и от них
+   раскладка по предкам уезжает в бесконечность. Стрелка «Назад» при таком
+   счёте честно рисуется стрелкой, идущей назад. */
+function place(nodes){
+  const alive=new Set(nodes.map(n=>n.id));
+  const edges=[];
+  nodes.forEach(n=>(n.n||[]).forEach(t=>{if(alive.has(t))edges.push([n.id,t]);}));
+  const out=new Map(nodes.map(n=>[n.id,[]]));
+  const parents=new Map(nodes.map(n=>[n.id,[]]));
+  const deg=new Map(nodes.map(n=>[n.id,0]));
+  edges.forEach(([a,b])=>{
+    out.get(a).push(b);parents.get(b).push(a);
+    deg.set(a,deg.get(a)+1);deg.set(b,deg.get(b)+1);
+  });
+
+  const layer=new Map();
+  const queue=[];
+  nodes.forEach(n=>{if(!parents.get(n.id).length){layer.set(n.id,0);queue.push(n.id);}});
+  /* Вся область может оказаться замкнутым кольцом без единой точки входа —
+     тогда началом считаем самый разветвлённый узел. */
+  if(!queue.length&&nodes.length){
+    let seed=nodes[0];
+    nodes.forEach(n=>{if(out.get(n.id).length>out.get(seed.id).length)seed=n;});
+    layer.set(seed.id,0);queue.push(seed.id);
+  }
+  for(let i=0;i<queue.length;i++){
+    const from=queue[i];
+    for(const to of out.get(from)){
+      if(!layer.has(to)){layer.set(to,layer.get(from)+1);queue.push(to);}
+    }
+  }
+  nodes.forEach(n=>{if(!layer.has(n.id))layer.set(n.id,0);});
+
+  const rows=[];
+  nodes.forEach(n=>{const L=layer.get(n.id);(rows[L]=rows[L]||[]).push(n);});
+  const pos=new Map();
+  rows.forEach((row,L)=>{
+    if(!row)return;
+    if(L===0){
+      /* Одиночки — вниз колонки, чтобы не разрывать реальные цепочки. */
+      row.sort((x,y)=>(deg.get(x.id)?0:1)-(deg.get(y.id)?0:1));
+    }else{
+      /* Узел встаёт напротив тех, кто на него ссылается: меньше пересечений. */
+      const mid=n=>{
+        const ps=parents.get(n.id).map(p=>pos.get(p)).filter(Boolean);
+        return ps.length?ps.reduce((s,p)=>s+p.y,0)/ps.length:1e9;
+      };
+      row.sort((x,y)=>mid(x)-mid(y));
+    }
+    row.forEach((n,i)=>pos.set(n.id,{x:PAD+L*(NW+GAPX),y:PAD+i*(NH+GAPY)}));
+  });
+  const sizes=rows.filter(Boolean).map(r=>r.length);
+  const wide=sizes.length?Math.max.apply(null,sizes):1;
+  return {edges:edges,pos:pos,deg:deg,
+          w:PAD*2+(rows.length-1)*(NW+GAPX)+NW,
+          h:PAD*2+(wide-1)*(NH+GAPY)+NH};
+}
+
+function drawArea(area,role){
+  const nodes=area.nodes.filter(n=>seen(n,role));
+  if(!nodes.length)return null;
+  const L=place(nodes);
+
+  const box=document.createElement('figure');
+  box.className='gpanel';
+  const head=document.createElement('h3');
+  head.innerHTML='<b></b><span></span>';
+  head.querySelector('b').textContent=area.label;
+  head.querySelector('span').textContent=nodes.length+' шт. · '+L.edges.length+' переходов';
+  box.appendChild(head);
+
+  const wrap=document.createElement('div');
+  wrap.className='gwrap';
+  const svg=el('svg',{viewBox:'0 0 '+L.w+' '+L.h,width:L.w*zoom,height:L.h*zoom});
+  const mid=el('marker',{id:'arw-'+area.key,viewBox:'0 0 10 10',refX:9,refY:5,
+    markerWidth:6,markerHeight:6,orient:'auto-start-reverse'},el('defs',{},svg));
+  el('path',{d:'M0,0 L10,5 L0,10 z',fill:'currentColor'},mid);
+
+  for(const [a,b] of L.edges){
+    const p=L.pos.get(a),q=L.pos.get(b);
+    const x1=p.x+NW,y1=p.y+NH/2,x2=q.x,y2=q.y+NH/2;
+    const bend=Math.max(34,(x2-x1)/2);
+    el('path',{class:'ge','data-a':a,'data-b':b,'marker-end':'url(#arw-'+area.key+')',
+      d:'M'+x1+','+y1+' C'+(x1+bend)+','+y1+' '+(x2-bend)+','+y2+' '+x2+','+y2},svg);
+  }
+
+  nodes.forEach(n=>{
+    const p=L.pos.get(n.id);
+    const g=el('g',{class:'gn'+(L.deg.get(n.id)?'':' iso'),'data-id':n.id,
+      transform:'translate('+p.x+','+p.y+')'},svg);
+    el('rect',{class:'box',width:NW,height:NH,rx:9},g);
+    el('rect',{width:4,height:NH-16,x:0,y:8,rx:2,fill:'var(--k-'+n.k+')'},g);
+    const ico=el('text',{class:'ico',x:14,y:NH/2+4},g);
+    ico.textContent=ICONS[n.k]||'•';
+    const lbl=el('text',{class:'lbl',x:32,y:NH/2+4.5},g);
+    lbl.textContent=short(n.t,24);
+
+    g.addEventListener('mouseenter',()=>{
+      const card=document.getElementById(n.id);
+      if(card){tip.innerHTML=card.innerHTML;tip.classList.remove('hidden');}
+      svg.querySelectorAll('.ge').forEach(e=>{
+        const touch=e.dataset.a===n.id||e.dataset.b===n.id;
+        e.classList.toggle('on',touch);e.classList.toggle('dim',!touch);
+      });
+    });
+    g.addEventListener('mousemove',ev=>{
+      const w=tip.offsetWidth,h=tip.offsetHeight;
+      let x=ev.clientX+18,y=ev.clientY+16;
+      if(x+w>innerWidth-10)x=ev.clientX-w-18;
+      if(y+h>innerHeight-10)y=Math.max(10,innerHeight-h-10);
+      tip.style.left=x+'px';tip.style.top=y+'px';
+    });
+    g.addEventListener('mouseleave',()=>{
+      tip.classList.add('hidden');
+      svg.querySelectorAll('.ge').forEach(e=>e.classList.remove('on','dim'));
+    });
+    g.addEventListener('click',()=>{showView('list');location.hash='#'+n.id;});
+  });
+
+  wrap.appendChild(svg);
+  box.appendChild(wrap);
+  return box;
+}
+
+function renderGraph(){
+  host.innerHTML='';
+  let drawn=0;
+  GRAPH.areas.forEach(area=>{
+    const panel=drawArea(area,role);
+    if(panel){host.appendChild(panel);drawn++;}
+  });
+  if(!drawn){
+    host.innerHTML='<p class="gempty">Для этой роли на карте нет ни одной точки входа.</p>';
+  }
+  markSearch();
+}
+
+/* Поиск не прячет узлы схемы, а гасит несовпавшие: цепочка остаётся видимой. */
+function markSearch(){
+  const q=search.value.trim().toLowerCase();
+  document.querySelectorAll('.gn').forEach(g=>{
+    if(!q){g.classList.remove('dim');return;}
+    const card=document.getElementById(g.dataset.id);
+    const hay=card?(card.dataset.search||''):'';
+    g.classList.toggle('dim',hay.indexOf(q)<0);
+  });
+}
+
+function setZoom(step){
+  zoom=Math.min(1.6,Math.max(.45,Math.round((zoom+step)*100)/100));
+  document.querySelectorAll('.gwrap svg').forEach(s=>{
+    const vb=s.getAttribute('viewBox').split(' ');
+    s.setAttribute('width',vb[2]*zoom);s.setAttribute('height',vb[3]*zoom);
+  });
+}
+document.getElementById('zin').addEventListener('click',()=>setZoom(.15));
+document.getElementById('zout').addEventListener('click',()=>setZoom(-.15));
+"""
+
 JS = """
 const filters=document.querySelectorAll('button.f');
+const views=document.querySelectorAll('button.v');
 const search=document.getElementById('q');
 let role='all';
+let view='graph';
+
+function showView(name){
+  view=name;
+  views.forEach(b=>b.classList.toggle('on',b.dataset.view===name));
+  document.getElementById('graph-view').classList.toggle('hidden',name!=='graph');
+  document.getElementById('list-view').classList.toggle('hidden',name!=='list');
+  document.getElementById('zoombox').classList.toggle('hidden',name!=='graph');
+  if(name==='graph')renderGraph();
+}
+views.forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
+
 function apply(){
   const q=search.value.trim().toLowerCase();
   document.querySelectorAll('.node').forEach(n=>{
@@ -368,11 +601,55 @@ function apply(){
 }
 filters.forEach(b=>b.addEventListener('click',()=>{
   filters.forEach(x=>x.classList.remove('on'));
-  b.classList.add('on'); role=b.dataset.role; apply();
+  b.classList.add('on'); role=b.dataset.role;
+  apply();
+  if(view==='graph')renderGraph();
 }));
-search.addEventListener('input',apply);
+search.addEventListener('input',()=>{apply();if(view==='graph')markSearch();});
+
+/* Ссылка вида map.html#reg_nick должна открывать карточку, а не пустой список. */
+if(location.hash.length>1){showView('list');}else{showView('graph');}
 apply();
 """
+
+
+def _graph_payload(spec: dict, facts: CodeFacts) -> str:
+    """Готовит данные для схемы: только то, чего нет в карточках списка.
+
+    Подробности (что делает, что человек видит, что читает и пишет) схема
+    подтягивает из уже отрисованной карточки по её id — чтобы одно и то же
+    описание не лежало на странице дважды и не разъезжалось.
+    """
+    areas = [
+        {
+            "key": area["key"],
+            "label": area["label"],
+            "nodes": [
+                {
+                    "id": node["id"],
+                    "t": resolve_trigger(node, facts),
+                    "k": node["trigger_kind"],
+                    "r": node.get("roles") or ["any"],
+                    "n": node.get("next") or [],
+                }
+                for node in area["nodes"]
+            ],
+        }
+        for area in spec["areas"]
+    ]
+    raw = json.dumps({"areas": areas}, ensure_ascii=False, separators=(",", ":"))
+    # «</» внутри строки закрыло бы тег <script> раньше времени
+    return raw.replace("</", "<\\/")
+
+
+def _kind_legend() -> str:
+    items = []
+    for kind, (icon, label) in KIND_LABELS.items():
+        items.append(
+            f'<span><i style="background:var(--k-{esc(kind)})"></i>{icon} {esc(label)}</span>'
+        )
+    items.append('<span><i style="border:1px dashed var(--muted)"></i>без связей — отдельная точка</span>')
+    return "".join(items)
 
 
 def render_html(spec: dict, facts: CodeFacts) -> str:
@@ -412,27 +689,49 @@ def render_html(spec: dict, facts: CodeFacts) -> str:
     return f"""<!doctype html>
 <html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TTC — карта сценариев</title><style>{CSS}</style></head>
+<title>TTC — карта сценариев</title><style>{CSS}{GRAPH_CSS}</style></head>
 <body><div class="wrap">
 <h1>Карта сценариев бота TTC</h1>
 <div class="meta">Собрана из кода {esc(built)} · коммит {esc(commit)} ·
 пересобрать: двойной клик по <code>карта-сценариев.bat</code> в корне проекта</div>
 <div class="stats">{stats_html}</div>
+<div class="controls">
+  <div class="views">
+    <button class="v on" data-view="graph">Схема</button>
+    <button class="v" data-view="list">Список</button>
+    <span class="zoom" id="zoombox">масштаб
+      <button id="zout" title="Мельче">−</button><button id="zin" title="Крупнее">+</button></span>
+  </div>
+  <div class="filters">{"".join(filter_buttons)}</div>
+  <input class="search" id="q" placeholder="Поиск по кнопкам и описаниям…">
+</div>
+
+<div id="graph-view">
+<p class="legend">Выберите роль — и схема покажет ровно то, что видит человек с этой ролью.
+Каждый прямоугольник — точка входа, стрелка — куда человек попадает следующим шагом.
+<b>Наведите на прямоугольник</b>, чтобы прочитать подробности, и нажмите на него,
+чтобы открыть эту точку в списке. Схема разбита на области: переходов между областями нет,
+каждая живёт своей цепочкой.</p>
+<div class="glegend">{_kind_legend()}</div>
+<div id="graph-areas"></div>
+</div>
+
+<div id="list-view" class="hidden">
 <p class="legend">Каждая карточка — одна точка входа: команда, кнопка меню, кнопка под сообщением
 или сообщение внутри формы. «Дальше» — куда человек попадает следующим шагом, ссылка ведёт
 к нужной карточке. Цветные метки: <span class="chip read">читает из базы</span>
 <span class="chip write">пишет в базу</span> <span class="chip notify">кому уходит сообщение</span>.</p>
-<div class="controls">
-  <div class="filters">{"".join(filter_buttons)}</div>
-  <input class="search" id="q" placeholder="Поиск по кнопкам и описаниям…">
-</div>
 {"".join(areas_html)}
 <section><h2 id="area-scenarios">Сообщения, которые бот шлёт сам</h2>
 {_registry_html(spec.get("scenarios", []), "Каждое из этих сообщений правится прямо в боте: «🛠 Админство» → «🧩 Сценарии». Ссылка справа ведёт к моменту, когда человек его получает.")}</section>
 <section><h2 id="area-slots">Блоки, которые правятся командой /content</h2>
 {_registry_html(spec.get("slots", []), "Это тексты и файлы разделов. Меняются без программиста, изменение видно людям сразу.")}</section>
 <section class="area"><h2 id="area-db">Что лежит в базе и откуда берётся</h2>{tables_html}</section>
-</div><script>{JS}</script></body></html>
+</div>
+</div>
+<div id="gtip" class="gtip hidden"></div>
+<script>const GRAPH={_graph_payload(spec, facts)};</script>
+<script>{GRAPH_JS}{JS}</script></body></html>
 """
 
 
