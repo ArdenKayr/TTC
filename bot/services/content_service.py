@@ -23,6 +23,8 @@ class Slot:
 SLOTS: dict[str, Slot] = {
     "welcome": Slot("welcome", "Приветствие при запуске бота", texts.WELCOME_DEFAULT),
     "about": Slot("about", "«Кто мы?» — рассказ о сообществе", texts.ABOUT_DEFAULT),
+    # Сюда владелец кладёт ссылку на статью-инструкцию (её текст — docs/USER_GUIDE.md).
+    "guide": Slot("guide", "Инструкция: ссылка на статью", texts.GUIDE_DEFAULT),
     "rules": Slot("rules", "Правила сообщества", texts.RULES_DEFAULT),
     "docs": Slot("docs", "Документы", texts.DOCS_DEFAULT),
     "updates": Slot("updates", "Обновления + архив", texts.UPDATES_DEFAULT),

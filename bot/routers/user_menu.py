@@ -30,6 +30,7 @@ _PRIVATE = F.chat.type == ChatType.PRIVATE
 
 # Кнопка подменю «Информация» -> слот контента.
 _INFO_SLOTS = {
+    texts.BTN.INFO_GUIDE: "guide",
     texts.BTN.INFO_RULES: "rules",
     texts.BTN.INFO_DOCS: "docs",
     texts.BTN.INFO_UPDATES: "updates",

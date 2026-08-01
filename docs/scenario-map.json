@@ -142,8 +142,9 @@
           ],
           "handler": "bot/routers/user_menu.py:info_menu",
           "does": "Меняет нижнее меню на подменю разделов. Строка «Регламенты» появляется только у суперадминов и владельца.",
-          "shows": "«Что показать? Выберите раздел в меню внизу» и кнопки: Кто мы?, Правила, Документы, Обновления, Стать организатором, Стать админом, Назад.",
+          "shows": "«Что показать? Выберите раздел в меню внизу» и кнопки: Инструкция (первой строкой, во всю ширину), Кто мы?, Правила, Документы, Обновления, Стать организатором, Стать админом, Назад.",
           "next": [
+            "info_guide",
             "about_show",
             "info_rules",
             "info_docs",
@@ -155,6 +156,25 @@
           ],
           "db_reads": [
             "users"
+          ]
+        },
+        {
+          "id": "info_guide",
+          "trigger_kind": "reply_button",
+          "trigger_ref": "BTN.INFO_GUIDE",
+          "where": "dm",
+          "roles": [
+            "user",
+            "organizer",
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/user_menu.py:info_show",
+          "does": "Показывает блок «Инструкция: ссылка на статью». Сама инструкция живёт отдельной статьёй в Telegram, бот только выдаёт ссылку на неё — поэтому статью можно переписать, не трогая бота.",
+          "shows": "Короткий текст со ссылкой на статью с полным описанием бота. Пока владелец не вставил ссылку — объяснение, что она скоро появится.",
+          "db_reads": [
+            "content_blocks"
           ]
         },
         {
@@ -5975,6 +5995,7 @@
         "info_become_admin",
         "info_become_org",
         "info_docs",
+        "info_guide",
         "info_menu",
         "info_rules",
         "info_updates",
@@ -6168,6 +6189,33 @@
       ]
     },
     {
+      "key": "guide",
+      "title": "Инструкция: ссылка на статью",
+      "files": [
+        "bot/routers/user_menu.py"
+      ],
+      "nodes": [
+        "admin_mode_off",
+        "admin_mode_on",
+        "info_admin_regs",
+        "info_back",
+        "info_become_admin",
+        "info_become_org",
+        "info_docs",
+        "info_guide",
+        "info_menu",
+        "info_rules",
+        "info_updates",
+        "own_panel_close",
+        "own_panel_open",
+        "perm_admin_mode",
+        "report_btn",
+        "report_cancel",
+        "report_restart",
+        "report_text"
+      ]
+    },
+    {
       "key": "rules",
       "title": "Правила сообщества",
       "files": [
@@ -6181,6 +6229,7 @@
         "info_become_admin",
         "info_become_org",
         "info_docs",
+        "info_guide",
         "info_menu",
         "info_rules",
         "info_updates",
@@ -6207,6 +6256,7 @@
         "info_become_admin",
         "info_become_org",
         "info_docs",
+        "info_guide",
         "info_menu",
         "info_rules",
         "info_updates",
@@ -6234,6 +6284,7 @@
         "info_become_admin",
         "info_become_org",
         "info_docs",
+        "info_guide",
         "info_menu",
         "info_rules",
         "info_updates",
@@ -6260,6 +6311,7 @@
         "info_become_admin",
         "info_become_org",
         "info_docs",
+        "info_guide",
         "info_menu",
         "info_rules",
         "info_updates",
@@ -6286,6 +6338,7 @@
         "info_become_admin",
         "info_become_org",
         "info_docs",
+        "info_guide",
         "info_menu",
         "info_rules",
         "info_updates",
@@ -6312,6 +6365,7 @@
         "info_become_admin",
         "info_become_org",
         "info_docs",
+        "info_guide",
         "info_menu",
         "info_rules",
         "info_updates",

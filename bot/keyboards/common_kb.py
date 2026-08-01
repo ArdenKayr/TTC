@@ -68,6 +68,9 @@ def info_menu_kb(is_superadmin: bool) -> ReplyKeyboardMarkup:
         last_row.insert(0, KeyboardButton(text=texts.BTN.INFO_ADMIN_REGS))
     return _reply(
         [
+            # Инструкция — во всю ширину и первой строкой: это то, с чего человеку
+            # проще всего начать, когда он не понимает, что вообще умеет бот.
+            [KeyboardButton(text=texts.BTN.INFO_GUIDE)],
             [KeyboardButton(text=texts.BTN.START_ABOUT), KeyboardButton(text=texts.BTN.INFO_RULES)],
             [KeyboardButton(text=texts.BTN.INFO_DOCS), KeyboardButton(text=texts.BTN.INFO_UPDATES)],
             [
