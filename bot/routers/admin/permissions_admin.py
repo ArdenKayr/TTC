@@ -9,7 +9,7 @@ from html import escape
 
 from aiogram import F, Router
 from aiogram.enums import ChatType
-from aiogram.filters import Command
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -75,8 +75,13 @@ async def _person_view(session: AsyncSession, target: User):
     return text, perm_person_kb(target, personal, groups)
 
 
-@router.message(Command("admins"), F.chat.type == ChatType.PRIVATE)
-async def cmd_admins(message: Message, session: AsyncSession, state: FSMContext) -> None:
+@router.message(
+    F.chat.type == ChatType.PRIVATE,
+    StateFilter(None),
+    F.text == texts.BTN.ADMIN_PANEL_PERMS,
+)
+async def btn_admins(message: Message, session: AsyncSession, state: FSMContext) -> None:
+    """Группы прав: «🛠 Админство» → «⚙️ Права». Раньше — команда /admins."""
     await state.clear()
     text, kb = await _home_view(session)
     await message.answer(text, reply_markup=kb)

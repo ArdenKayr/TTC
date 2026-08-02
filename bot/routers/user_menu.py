@@ -18,9 +18,19 @@ from bot import limits, texts
 from bot.db.models import User
 from bot.enums import UserRole
 from bot.keyboards.activity_kb import form_cancel_kb
-from bot.keyboards.common_kb import admin_panel_kb, info_menu_kb, main_menu_kb
+from bot.keyboards.common_kb import (
+    admin_panel_kb,
+    has_admin_powers,
+    info_menu_kb,
+    main_menu_kb,
+)
 from bot.routers.common import send_start_screen
-from bot.services import content_service, notification_service, scenario_service
+from bot.services import (
+    content_service,
+    notification_service,
+    permission_service,
+    scenario_service,
+)
 from bot.states.profile_states import ReportForm
 
 router = Router(name="user_menu")
@@ -134,13 +144,13 @@ async def report_text(
 
 
 @router.message(_PRIVATE, StateFilter(None), F.text == texts.BTN.ADMIN_MODE)
-async def admin_mode_on(message: Message, db_user: User | None) -> None:
-    if not _is_super(db_user):
+async def admin_mode_on(
+    message: Message, session: AsyncSession, db_user: User | None
+) -> None:
+    if db_user is None or not has_admin_powers(db_user):
         return
-    await message.answer(
-        texts.ADMIN_MODE_ON,
-        reply_markup=admin_panel_kb(db_user.current_role == UserRole.OWNER),
-    )
+    modules = await permission_service.effective_modules(session, db_user)
+    await message.answer(texts.ADMIN_MODE_ON, reply_markup=admin_panel_kb(db_user, modules))
 
 
 @router.message(_PRIVATE, StateFilter(None), F.text == texts.BTN.ADMIN_PANEL_USER_MODE)

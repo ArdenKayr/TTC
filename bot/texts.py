@@ -39,6 +39,8 @@ class BTN:
     ADMIN_PANEL_CRUD = "🗄 CRUD"
     ADMIN_PANEL_SCENARIOS = "🧩 Сценарии"
     ADMIN_PANEL_CONTENT = "📄 Разделы"
+    ADMIN_PANEL_PERMS = "⚙️ Права"
+    ADMIN_PANEL_ACTIVITIES = "📅 Мероприятия"
     ADMIN_PANEL_LOGS = "📜 Логи"
     ADMIN_PANEL_UPDATES = "📢 Обновления"
     ADMIN_PANEL_USER_MODE = "⬅️ Пользователь"
@@ -48,6 +50,11 @@ class BTN:
     SUPER_MAKE_SUPER = "⭐ Сделать суперадмином"
     SUPER_REMOVE_SUPER = "⬇️ Снять суперадминство"
     SUPER_BAN = "🔨 Забанить"
+    SUPER_UNBAN = "✅ Разбанить"
+    SUPER_ROLE_ORG = "🎓 Организатор"
+    SUPER_ROLE_USER = "👤 Участник"
+    SUPER_ROLE_CUSTOM = "🎭 Особая роль"
+    BAN_NO_REASON = "⏭ Без причины"
     ACT_COMPLETE = "✅ Завершить"
     ACT_CANCEL_ACT = "🚫 Отменить"
     CALL_CLAIM = "🙋 Возьмусь"
@@ -177,7 +184,7 @@ REPORT_PROMPT = (
 REPORT_INVALID = "Сообщение — от {min} до {max} символов. Попробуйте ещё раз:"
 
 # --- Режим «Админство» (суперадмины и владелец) ---
-ADMIN_MODE_ON = "🛠 Режим админства. Команды бота работают как обычно, меню — ниже."
+ADMIN_MODE_ON = "🛠 Режим админства. В меню внизу — только те разделы, что вам доступны."
 ADMIN_MODE_OFF = "Режим пользователя."
 ADMIN_PANEL_WIP = "🚧 Этот раздел появится в следующем обновлении бота."
 SUPER_USER_PROMPT = "Пришлите tg_id или @username пользователя (он должен быть зарегистрирован):"
@@ -190,7 +197,7 @@ SUPER_NOT_ADMIN = "Этот человек и так не админ."
 SUPER_NOT_SUPER = "Этот человек не суперадмин."
 SUPER_DONE = "Готово"
 
-# --- Редактор контента (/content, для админов) ---
+# --- Редактор страниц («📄 Разделы», для админов с модулем «Тексты») ---
 CONTENT_PICK = "Что редактируем?"
 CONTENT_CURRENT = "Текущее содержимое — «{title}»:"
 CONTENT_PROMPT = (
@@ -214,9 +221,8 @@ BANNED_DM = "⛔ Доступ к боту заблокирован."
 BAN_TARGET_DM_DEFAULT = "⛔ Вы заблокированы в сообществе «Истинный Курс»."
 UNBAN_TARGET_DM_DEFAULT = "✅ Блокировка снята. Добро пожаловать обратно!"
 
-# --- Репорты (/report и вызов @admin) ---
-REPORT_NOT_REGISTERED = "Репорты доступны после регистрации: /register"
-REPORT_USAGE = "Использование: /report <описание проблемы или бага>"
+# --- Репорты (кнопка «🐞 Репорт» и вызов @admin в группе) ---
+REPORT_NOT_REGISTERED = "Репорты доступны после регистрации — нажмите «📝 Регистрация»."
 REPORT_SENT = "Спасибо! Репорт отправлен админам."
 REPORT_CARD = "🐞 Репорт от {name} ({username}):\n\n{text}"
 ADMIN_CALL_REPORT = "🆘 {who} зовёт админов в группе:\n{link}"
@@ -374,7 +380,7 @@ APPROVED_DM_INVITE = (
 REJECTED_DM = "К сожалению, ваша заявка отклонена."
 REJECTED_DM_REASON = "\nПричина: {reason}"
 REJECTED_DM_TIMEOUT = "\nПовторная подача будет доступна через {minutes} мин."
-REJECTED_DM_RETRY = "\nВы можете подать заявку повторно: /register"
+REJECTED_DM_RETRY = "\nПодать заявку повторно можно кнопкой «📝 Регистрация» внизу экрана."
 CARD_APPROVED = "✅ Принята — {admin}"
 CARD_REJECTED = "❌ Отклонена — {admin}"
 NOTE_LINK_FAILED = "⚠️ Не удалось создать инвайт-ссылку (проверьте права бота в группе)."
@@ -385,7 +391,7 @@ REVIEW_ALREADY_PROCESSED = "Заявка уже обработана други�
 REVIEW_DONE = "Готово"
 REVIEW_ADMIN_ONLY = "⛔ Действие доступно только админам."
 
-# --- Панель прав админов (/admins, только для полных админов) ---
+# --- Панель прав админов («⚙️ Права», только для полных админов) ---
 PERM_HOME = (
     "⚙️ <b>Права админов</b>\n"
     "Включайте модули группе, затем добавляйте людей в группу — или выдавайте "
@@ -405,7 +411,7 @@ PERM_GROUP_DELETE_CONFIRM = (
 )
 PERM_GROUP_DELETED_MSG = "Группа «{name}» удалена."
 PERM_MEMBERS_HEADER = "👥 Участники группы «{name}»:"
-PERM_MEMBERS_EMPTY = "👥 В группе «{name}» пока никого. Добавить: «{person_btn}» в панели /admins."
+PERM_MEMBERS_EMPTY = "👥 В группе «{name}» пока никого. Добавить: «{person_btn}» в разделе «⚙️ Права»."
 PERM_PERSON_PROMPT = (
     "Пришлите tg_id или @username человека — он должен быть зарегистрирован в боте:"
 )
@@ -420,9 +426,12 @@ PERM_CANCELLED = "Отменено."
 PERM_NO_GROUP_LABEL = "—"
 
 # --- Команды модерации ---
-BAN_USAGE = "Использование: /ban <tg_id | @username> [причина]"
-UNBAN_USAGE = "Использование: /unban <tg_id | @username>"
-SETROLE_USAGE = "Использование: /setrole <tg_id | @username> <{roles}>"
+BAN_REASON_PROMPT = (
+    "🔨 Баним <b>{name}</b>.\n"
+    "Напишите причину — её увидит человек, и она попадёт в журнал. "
+    "Причина не нужна — «{skip}»."
+)
+BAN_REASON_TOO_LONG = "Причина — до {max} символов. Пришлите короче или «{skip}»."
 USER_NOT_FOUND = "Пользователь не найден в базе."
 # Автора записи удалили из базы: сама запись осталась, а ссылка на человека
 # опустела. Так подписываем его везде, где раньше стояло имя.
@@ -441,10 +450,10 @@ ROLE_CHANGED_DM = (
 )
 
 # --- Ошибки смены ролей (возвращаются сервисом) ---
-ROLE_NOT_ASSIGNABLE = "Вам недоступно назначение этой роли. Для бана используйте /ban."
+ROLE_NOT_ASSIGNABLE = "Вам недоступно назначение этой роли. Для бана есть кнопка «🔨 Забанить»."
 ROLE_NO_RIGHTS = "Назначать роли могут только суперадмины и владелец."
 ROLE_TARGET_PROTECTED = "Нельзя менять роль человеку вашего уровня или выше."
-ROLE_TARGET_BANNED = "Пользователь забанен — сначала снимите бан (/unban)."
+ROLE_TARGET_BANNED = "Пользователь забанен — сначала снимите бан кнопкой «✅ Разбанить»."
 ROLE_ALREADY_SET = "У пользователя уже роль {role}."
 BAN_ALREADY = "Пользователь уже забанен."
 BAN_TARGET_PROTECTED = "Нельзя забанить админа вашего уровня или выше."
@@ -515,7 +524,7 @@ AFISHA_CARD = "{status_line}📅 <b>{title}</b>\n\n{description}\n{details}\n�
 AFISHA_DONE_LINE = "✅ <b>Прошло</b>\n\n"
 AFISHA_CANCELLED_LINE = "🚫 <b>Отменено</b>\n\n"
 
-# --- Жизненный цикл мероприятий (/activities, для админов) ---
+# --- Жизненный цикл мероприятий («📅 Мероприятия», для админов) ---
 ACT_LIST_EMPTY = "Активных мероприятий нет."
 ACT_LIST_ITEM = (
     "📅 <b>{title}</b>\n"

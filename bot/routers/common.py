@@ -1,8 +1,7 @@
-from html import escape
 
 from aiogram import F, Router
 from aiogram.enums import ChatType
-from aiogram.filters import Command, CommandObject, CommandStart
+from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +9,7 @@ from bot import texts
 from bot.db.models import User
 from bot.keyboards.callback_data import StartCB
 from bot.keyboards.common_kb import main_menu_kb
-from bot.services import content_service, notification_service, scenario_service
+from bot.services import content_service
 
 router = Router(name="common")
 
@@ -53,22 +52,3 @@ async def cb_about(callback: CallbackQuery, session: AsyncSession) -> None:
     await callback.answer()
 
 
-@router.message(Command("report"), F.chat.type == ChatType.PRIVATE)
-async def cmd_report(
-    message: Message, command: CommandObject, session: AsyncSession, db_user: User | None
-) -> None:
-    if db_user is None:
-        await message.answer(texts.REPORT_NOT_REGISTERED)
-        return
-    text = (command.args or "").strip()
-    if not text:
-        await message.answer(texts.REPORT_USAGE)
-        return
-    username = f"@{db_user.username}" if db_user.username else f"id {db_user.tg_id}"
-    await notification_service.send_admin_report(
-        message.bot,
-        texts.REPORT_CARD.format(
-            name=escape(db_user.display_name), username=escape(username), text=escape(text)
-        ),
-    )
-    await scenario_service.reply(message, session, "report_sent")

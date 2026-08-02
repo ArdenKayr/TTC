@@ -1,6 +1,6 @@
 from aiogram import F, Router
 from aiogram.enums import ChatType
-from aiogram.filters import Command, StateFilter
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,26 +19,21 @@ router.message.filter(HasPerm(PermissionModule.CONTENT))
 router.callback_query.filter(HasPerm(PermissionModule.CONTENT))
 
 
-@router.message(Command("content"), F.chat.type == ChatType.PRIVATE)
-async def cmd_content(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await message.answer(
-        texts.CONTENT_PICK, reply_markup=content_slots_kb(content_service.SLOTS.values())
-    )
-
-
 @router.message(
     F.chat.type == ChatType.PRIVATE,
     StateFilter(None),
     F.text == texts.BTN.ADMIN_PANEL_CONTENT,
 )
 async def btn_content(message: Message, state: FSMContext) -> None:
-    """Тот же список, что у /content, но кнопкой из панели «Админство».
+    """Список страниц бота: «🛠 Админство» → «📄 Разделы».
 
-    Команду нужно было знать наизусть: в панели её не было, и редактор
-    страниц раздела «Информация» выглядел так, будто его вовсе нет.
+    Раньше сюда вела команда /content, которой не было ни в одном меню, —
+    редактор страниц выглядел так, будто его вовсе нет.
     """
-    await cmd_content(message, state)
+    await state.clear()
+    await message.answer(
+        texts.CONTENT_PICK, reply_markup=content_slots_kb(content_service.SLOTS.values())
+    )
 
 
 @router.callback_query(ContentSlotCB.filter())

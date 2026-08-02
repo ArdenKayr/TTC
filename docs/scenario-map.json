@@ -310,29 +310,6 @@
           ]
         },
         {
-          "id": "report_cmd",
-          "trigger_kind": "command",
-          "trigger_text": "/report <текст>",
-          "where": "dm",
-          "roles": [
-            "user",
-            "organizer",
-            "admin",
-            "superadmin",
-            "owner"
-          ],
-          "handler": "bot/routers/common.py:cmd_report",
-          "does": "Сразу отправляет написанное админам одной карточкой с именем и ссылкой на автора. Незарегистрированного отправляет регистрироваться.",
-          "shows": "Автору — «Спасибо! Репорт отправлен админам». Без текста — подсказка по использованию. Гостю — «Репорты доступны после регистрации».",
-          "db_reads": [
-            "users",
-            "content_blocks"
-          ],
-          "notifies": [
-            "админам в админ-чат, топик репортов"
-          ]
-        },
-        {
           "id": "report_btn",
           "trigger_kind": "reply_button",
           "trigger_ref": "BTN.REPORT",
@@ -486,25 +463,6 @@
       "key": "reg",
       "label": "Анкета вступления в сообщество",
       "nodes": [
-        {
-          "id": "reg_cmd_register",
-          "trigger_kind": "command",
-          "trigger_text": "/register",
-          "where": "dm",
-          "roles": [
-            "any"
-          ],
-          "handler": "bot/routers/registration.py:cmd_register",
-          "does": "Проверяет, можно ли подавать заявку, и при разрешении начинает анкету с вопроса об имени.",
-          "shows": "Гостю — первый вопрос анкеты и кнопку «Отмена». Иначе отказ: уже зарегистрированы, заявка на рассмотрении или таймаут после отказа.",
-          "next": [
-            "reg_nick"
-          ],
-          "db_reads": [
-            "users",
-            "registration_requests"
-          ]
-        },
         {
           "id": "reg_menu_register",
           "trigger_kind": "reply_button",
@@ -2635,8 +2593,7 @@
         },
         {
           "id": "mod_activities",
-          "trigger_kind": "command",
-          "trigger_text": "/activities",
+          "trigger_kind": "reply_button",
           "where": "dm",
           "roles": [
             "admin",
@@ -2644,9 +2601,9 @@
             "owner"
           ],
           "perm_module": "activities",
-          "handler": "bot/routers/admin/activity_review.py:cmd_activities",
-          "does": "Показывает все действующие мероприятия, каждое отдельным сообщением с кнопками. Работает и в ЛС бота, и в админ-чате.",
-          "shows": "На каждое мероприятие: название, организатор с ником, дата одобрения и кнопки «Завершить» и «Отменить».",
+          "handler": "bot/routers/admin/activity_review.py:btn_activities",
+          "does": "Показывает все активные мероприятия — каждое отдельным сообщением с кнопками «Завершить» и «Отменить». Раньше открывалось командой /activities, о которой надо было знать заранее.",
+          "shows": "По сообщению на мероприятие: название, организатор, дата одобрения и две кнопки. Активных нет — «Активных мероприятий нет».",
           "next": [
             "mod_act_complete",
             "mod_act_cancel",
@@ -2656,7 +2613,8 @@
             "activities",
             "users",
             "permission_groups"
-          ]
+          ],
+          "trigger_ref": "BTN.ADMIN_PANEL_ACTIVITIES"
         },
         {
           "id": "mod_activities_empty",
@@ -2813,8 +2771,8 @@
         },
         {
           "id": "mod_ban",
-          "trigger_kind": "command",
-          "trigger_text": "/ban <tg_id | @username> [причина]",
+          "trigger_kind": "message",
+          "trigger_text": "причина бана текстом (или кнопка «⏭ Без причины»)",
           "where": "dm",
           "roles": [
             "admin",
@@ -2822,9 +2780,9 @@
             "owner"
           ],
           "perm_module": "moderation",
-          "handler": "bot/routers/admin/moderation.py:cmd_ban",
-          "does": "Ставит роль «забанен», запоминает прежнюю роль, время и причину и исключает человека из группы сообщества.",
-          "shows": "Ответ «🔨 Имя (id номер) забанен». Без аргументов — подсказка по формату команды.",
+          "handler": "bot/routers/superadmin.py:ban_with_reason",
+          "does": "Забирает причину и банит: запоминает прежнюю роль, ставит роль «banned» с временем и причиной, выкидывает из группы, пишет в аудит. Раньше причину можно было указать только командой /ban — кнопка банила молча.",
+          "shows": "Подтверждение админу и перерисованная карточка, где вместо «Забанить» уже «Разбанить». Забаненному уходит личка с причиной.",
           "next": [
             "mod_ban_target",
             "mod_ban_refused",
@@ -2842,6 +2800,9 @@
           "notifies": [
             "забаненному в ЛС",
             "админу в тот же чат"
+          ],
+          "covers_buttons": [
+            "BTN.BAN_NO_REASON"
           ]
         },
         {
@@ -2882,8 +2843,7 @@
         },
         {
           "id": "mod_unban",
-          "trigger_kind": "command",
-          "trigger_text": "/unban <tg_id | @username>",
+          "trigger_kind": "inline_button",
           "where": "dm",
           "roles": [
             "admin",
@@ -2891,9 +2851,9 @@
             "owner"
           ],
           "perm_module": "moderation",
-          "handler": "bot/routers/admin/moderation.py:cmd_unban",
-          "does": "Возвращает роль, которая была до бана, чистит причину и дату и снимает ограничение в группе сообщества.",
-          "shows": "Ответ «✅ Имя разбанен, роль восстановлена: …». Если человек не забанен — так и написано.",
+          "handler": "bot/routers/superadmin.py:cb_user_action",
+          "does": "Снимает бан: возвращает роль, которая была до него, чистит поля бана и снимает бан в Telegram-группе. Пишет в аудит. Кнопка есть в карточке только у забаненного — раньше разбанить можно было лишь командой.",
+          "shows": "Карточка человека перерисовывается с прежней ролью; ему уходит личка о снятии бана.",
           "next": [
             "mod_unban_target",
             "mod_issue_owner"
@@ -2910,7 +2870,8 @@
           "notifies": [
             "разбаненному в ЛС",
             "админу в тот же чат"
-          ]
+          ],
+          "trigger_ref": "BTN.SUPER_UNBAN"
         },
         {
           "id": "mod_unban_target",
@@ -2934,16 +2895,15 @@
         },
         {
           "id": "mod_setrole",
-          "trigger_kind": "command",
-          "trigger_text": "/setrole <tg_id | @username> <роль>",
+          "trigger_kind": "inline_button",
           "where": "dm",
           "roles": [
             "superadmin",
             "owner"
           ],
-          "handler": "bot/routers/admin/moderation.py:cmd_setrole",
-          "does": "Меняет роль человека. Суперадмин раздаёт до админа, владелец — до суперадмина. Роль владельца через бота не выдаётся.",
-          "shows": "Ответ «✅ Роль имя изменена на …» или отказ: нельзя трогать равного и выше, забаненного, роль уже стоит.",
+          "handler": "bot/routers/superadmin.py:cb_user_action",
+          "does": "Выдаёт человеку роль организатора, обычного участника или особую. Проверяет иерархию, пишет в аудит и шлёт человеку новое нижнее меню. Раньше эти три роли выдавались только командой /setrole.",
+          "shows": "Карточка перерисовывается с новой ролью; человеку уходит «Ваша роль изменилась».",
           "next": [
             "mod_setrole_target",
             "mod_setrole_dm_failed"
@@ -2958,6 +2918,11 @@
           "notifies": [
             "человеку в ЛС",
             "админу в тот же чат"
+          ],
+          "trigger_ref": "BTN.SUPER_ROLE_ORG",
+          "covers_buttons": [
+            "BTN.SUPER_ROLE_USER",
+            "BTN.SUPER_ROLE_CUSTOM"
           ]
         },
         {
@@ -3044,16 +3009,15 @@
         },
         {
           "id": "perm_admins_cmd",
-          "trigger_kind": "command",
-          "trigger_text": "/admins",
+          "trigger_kind": "reply_button",
           "where": "dm",
           "roles": [
             "admin",
             "superadmin",
             "owner"
           ],
-          "handler": "bot/routers/admin/permissions_admin.py:cmd_admins",
-          "does": "Открывает панель прав: сбрасывает начатую форму и показывает список всех групп прав.",
+          "handler": "bot/routers/admin/permissions_admin.py:btn_admins",
+          "does": "Открывает панель прав: сбрасывает начатую форму и показывает список всех групп прав. Раньше — команда /admins.",
           "shows": "Заголовок «Права админов», кнопки групп с числом модулей, «Создать группу», «Права человека».",
           "next": [
             "perm_group_open",
@@ -3062,7 +3026,8 @@
           ],
           "db_reads": [
             "permission_groups"
-          ]
+          ],
+          "trigger_ref": "BTN.ADMIN_PANEL_PERMS"
         },
         {
           "id": "perm_home",
@@ -3564,9 +3529,10 @@
             "owner"
           ],
           "handler": "bot/routers/superadmin.py:cb_user_action",
-          "does": "Ставит роль «забанен», запоминает прежнюю роль и выкидывает человека из группы сообщества.",
-          "shows": "Обновлённую карточку с ролью «забанен» или всплывающее «уже забанен» либо запрет по иерархии.",
+          "does": "Спрашивает причину бана отдельным шагом, а не банит сразу: причину видит человек, и она остаётся в журнале.",
+          "shows": "Просьба написать причину и кнопки «⏭ Без причины» / «🚫 Отмена».",
           "next": [
+            "mod_ban",
             "perm_usr_custom"
           ],
           "db_reads": [
@@ -4006,26 +3972,6 @@
           "handler": "bot/routers/admin/content_admin.py:btn_content",
           "does": "Открывает тот же редактор страниц, что и команда /content, но кнопкой из панели «Админство». Раньше команду нужно было знать наизусть — в панели её не было, и редактор выглядел так, будто его нет вовсе.",
           "shows": "«Что редактируем?» и кнопку на каждую страницу: приветствие, «Кто мы?», Инструкция, Правила, Документы, Обновления, Стать организатором, Стать админом, Регламенты.",
-          "next": [
-            "cont_pick_slot"
-          ]
-        },
-        {
-          "id": "cont_start",
-          "trigger_kind": "command",
-          "trigger_text": "/content",
-          "where": "dm",
-          "roles": [
-            "user",
-            "organizer",
-            "admin",
-            "superadmin",
-            "owner"
-          ],
-          "perm_module": "content",
-          "handler": "bot/routers/admin/content_admin.py:cmd_content",
-          "does": "Открывает редактор постоянных блоков бота: приветствие, «Кто мы?», ссылка на статью-инструкцию, правила, документы, обновления, как стать организатором и админом, регламенты. То же самое открывает кнопка «Разделы» в панели «Админство».",
-          "shows": "«Что редактируем?» и кнопку на каждый блок.",
           "next": [
             "cont_pick_slot"
           ]
@@ -4909,7 +4855,7 @@
         {
           "id": "grp_admin_cmds_anywhere",
           "trigger_kind": "auto",
-          "trigger_text": "/ban, /unban, /setrole, /activities",
+          "trigger_text": "админская работа ведётся в личке бота",
           "where": "admin_chat",
           "roles": [
             "admin",
@@ -4917,8 +4863,8 @@
             "owner"
           ],
           "handler": "bot/routers/admin/moderation.py:cmd_ban",
-          "does": "Эти команды не привязаны к типу чата: работают и в личке, и в админ-чате, и прямо в общей группе.",
-          "shows": "Ответ бота приходит в тот же чат, где набрали команду.",
+          "does": "Админские разделы живут в панели «🛠 Админство» в личке бота и работают одинаково, в какой бы теме админ ни находился. Команд у бота больше нет — кроме /start и вызова админов в группе.",
+          "shows": "Ничего: в группе бот на это не отвечает.",
           "db_reads": [
             "users"
           ]
@@ -5728,7 +5674,6 @@
         "reg_alias_done",
         "reg_birth",
         "reg_cancel",
-        "reg_cmd_register",
         "reg_confirm_other",
         "reg_fb_no",
         "reg_fb_other",
@@ -5765,7 +5710,6 @@
         "reg_alias_done",
         "reg_birth",
         "reg_cancel",
-        "reg_cmd_register",
         "reg_confirm_other",
         "reg_fb_no",
         "reg_fb_other",
@@ -6022,7 +5966,6 @@
         "perm_admin_mode",
         "report_btn",
         "report_cancel",
-        "report_cmd",
         "report_restart",
         "report_text",
         "start_guest",
@@ -6172,7 +6115,6 @@
       "nodes": [
         "about_inline",
         "about_show",
-        "report_cmd",
         "start_guest",
         "start_user"
       ]
@@ -6201,7 +6143,6 @@
         "mem_profile_group_save",
         "mem_profile_nick_save",
         "mem_profile_open",
-        "report_cmd",
         "start_guest",
         "start_user"
       ]

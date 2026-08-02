@@ -1,8 +1,8 @@
 """Решения по мероприятиям и голосованиям (модуль прав «Мероприятия»).
 
 - Кнопки Принять/Отклонить на карточках заявок в админ-чате.
-- /activities — список активных мероприятий с кнопками «Завершить»/«Отменить»
-  (пометка в Афише + авто-снятие роли организатора).
+- «🛠 Админство» → «📅 Мероприятия» — список активных мероприятий с кнопками
+  «Завершить»/«Отменить» (пометка в Афише + авто-снятие роли организатора).
 """
 
 import uuid
@@ -10,7 +10,8 @@ from datetime import timedelta, timezone
 from html import escape
 
 from aiogram import F, Router
-from aiogram.filters import Command
+from aiogram.enums import ChatType
+from aiogram.filters import StateFilter
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -77,8 +78,18 @@ async def cb_vote_reject(
     await _apply_review_result(callback, ok, note)
 
 
-@router.message(Command("activities"), HasPerm(PermissionModule.ACTIVITIES))
-async def cmd_activities(message: Message, session: AsyncSession) -> None:
+@router.message(
+    F.chat.type == ChatType.PRIVATE,
+    StateFilter(None),
+    F.text == texts.BTN.ADMIN_PANEL_ACTIVITIES,
+    HasPerm(PermissionModule.ACTIVITIES),
+)
+async def btn_activities(message: Message, session: AsyncSession) -> None:
+    """Активные мероприятия с кнопками «Завершить» и «Отменить».
+
+    Раньше открывалось командой /activities — единственным способом закрыть
+    прошедшее мероприятие, о котором надо было знать заранее.
+    """
     activities = await activity_service.list_active(session)
     if not activities:
         await message.answer(texts.ACT_LIST_EMPTY)

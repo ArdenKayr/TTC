@@ -31,10 +31,10 @@ MODULES: dict[str, Module] = {
         PermissionModule.UNIVERSITIES.value, "Вузы и варианты поиска"
     ),
     PermissionModule.CONTENT.value: Module(
-        PermissionModule.CONTENT.value, "Тексты и файлы бота (/content)"
+        PermissionModule.CONTENT.value, "Тексты и файлы бота («📄 Разделы»)"
     ),
     PermissionModule.MODERATION.value: Module(
-        PermissionModule.MODERATION.value, "Бан и разбан (/ban, /unban)"
+        PermissionModule.MODERATION.value, "Бан и разбан («👤 Пользователи»)"
     ),
     PermissionModule.ACTIVITIES.value: Module(
         PermissionModule.ACTIVITIES.value, "Мероприятия и голосования"

@@ -7,7 +7,7 @@ from aiogram.types import (
 
 from bot import texts
 from bot.db.models import User
-from bot.enums import UserRole
+from bot.enums import FULL_ADMIN_ROLES, PermissionModule, UserRole
 from bot.keyboards.callback_data import AdminCallCB
 
 _SUPER_ROLES = (UserRole.SUPERADMIN, UserRole.OWNER)
@@ -25,10 +25,59 @@ MENU_BUTTON_TEXTS = {
     texts.BTN.ADMIN_PANEL_CRUD,
     texts.BTN.ADMIN_PANEL_SCENARIOS,
     texts.BTN.ADMIN_PANEL_CONTENT,
+    texts.BTN.ADMIN_PANEL_PERMS,
+    texts.BTN.ADMIN_PANEL_ACTIVITIES,
     texts.BTN.ADMIN_PANEL_LOGS,
     texts.BTN.ADMIN_PANEL_UPDATES,
     texts.BTN.ADMIN_PANEL_USER_MODE,
 }
+
+
+def has_admin_powers(user: User) -> bool:
+    """Есть ли у человека хоть что-то админское — видно по самой записи.
+
+    Проверка нарочно не ходит в базу: главное меню собирается в доброй дюжине
+    мест, и все они синхронные. Роль, назначенная группа прав и личные модули
+    лежат прямо в записи пользователя, а их достаточно, чтобы решить, показывать
+    ли кнопку «Админство». Точный состав разделов внутри панели считается уже с
+    базой — там это одно обращение на нажатие.
+    """
+    if user.current_role in FULL_ADMIN_ROLES:
+        return True
+    if user.permission_group_id is not None:
+        return True
+    return bool((user.custom_permissions or {}).get("modules"))
+
+
+def admin_sections(user: User, modules: set[str]) -> list[str]:
+    """Разделы панели «Админство», доступные этому человеку.
+
+    До 2026-08-02 половина этих разделов открывалась только командами
+    (/content, /activities, /ban, /unban, /admins), а панель видели лишь
+    суперадмины — обычный админ со своими модулями не имел ни одной кнопки.
+    Теперь список собирается по правам: что человеку разрешено, то он и видит.
+    """
+    is_owner = user.current_role == UserRole.OWNER
+    is_super = user.current_role in _SUPER_ROLES
+    is_full_admin = user.current_role in FULL_ADMIN_ROLES
+
+    sections: list[str] = []
+    # Карточка человека: роли — суперадминам, бан и разбан — по модулю.
+    if is_super or PermissionModule.MODERATION.value in modules:
+        sections.append(texts.BTN.ADMIN_PANEL_USERS)
+    if PermissionModule.ACTIVITIES.value in modules:
+        sections.append(texts.BTN.ADMIN_PANEL_ACTIVITIES)
+    if PermissionModule.CONTENT.value in modules:
+        sections.append(texts.BTN.ADMIN_PANEL_CONTENT)
+    if is_full_admin:
+        sections.append(texts.BTN.ADMIN_PANEL_PERMS)
+    if is_super:
+        sections.append(texts.BTN.ADMIN_PANEL_CRUD)
+        sections.append(texts.BTN.ADMIN_PANEL_SCENARIOS)
+    if is_owner:
+        sections.append(texts.BTN.ADMIN_PANEL_LOGS)
+        sections.append(texts.BTN.ADMIN_PANEL_UPDATES)
+    return sections
 
 
 def _reply(rows: list[list[KeyboardButton]]) -> ReplyKeyboardMarkup:
@@ -51,7 +100,7 @@ def main_menu_kb(user: User | None) -> ReplyKeyboardMarkup:
         )
     # Компактно: по две кнопки в ряд, всё меню видно без пролистывания.
     third_row = [KeyboardButton(text=texts.BTN.REPORT)]
-    if user.current_role in _SUPER_ROLES:
+    if has_admin_powers(user):
         third_row.append(KeyboardButton(text=texts.BTN.ADMIN_MODE))
     return _reply(
         [
@@ -83,31 +132,13 @@ def info_menu_kb(is_superadmin: bool) -> ReplyKeyboardMarkup:
     )
 
 
-def admin_panel_kb(is_owner: bool) -> ReplyKeyboardMarkup:
-    """Меню режима «Админство» (суперадмины; у владельца кнопок больше)."""
+def admin_panel_kb(user: User, modules: set[str]) -> ReplyKeyboardMarkup:
+    """Меню режима «Админство»: только разрешённые разделы, по два в ряд."""
+    sections = admin_sections(user, modules)
     rows = [
-        [
-            KeyboardButton(text=texts.BTN.ADMIN_PANEL_USERS),
-            KeyboardButton(text=texts.BTN.ADMIN_PANEL_CRUD),
-        ]
+        [KeyboardButton(text=label) for label in sections[i : i + 2]]
+        for i in range(0, len(sections), 2)
     ]
-    # «Сценарии» и «Разделы» — соседи не случайно: это два редактора текстов
-    # бота. Сценарии — что бот отвечает на действия, Разделы — страницы меню
-    # «Информация». Раньше вторые открывались только командой /content, и найти
-    # их, не зная команду, было нельзя.
-    rows.append(
-        [
-            KeyboardButton(text=texts.BTN.ADMIN_PANEL_SCENARIOS),
-            KeyboardButton(text=texts.BTN.ADMIN_PANEL_CONTENT),
-        ]
-    )
-    if is_owner:
-        rows.append(
-            [
-                KeyboardButton(text=texts.BTN.ADMIN_PANEL_LOGS),
-                KeyboardButton(text=texts.BTN.ADMIN_PANEL_UPDATES),
-            ]
-        )
     rows.append([KeyboardButton(text=texts.BTN.ADMIN_PANEL_USER_MODE)])
     return _reply(rows)
 

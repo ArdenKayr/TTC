@@ -3,12 +3,11 @@ from html import escape
 
 from aiogram import F, Router
 from aiogram.enums import ChatType
-from aiogram.filters import Command, CommandStart, StateFilter
+from aiogram.exceptions import TelegramAPIError
+from aiogram.filters import CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from aiogram.exceptions import TelegramAPIError
 
 from bot import limits, texts
 from bot.db.models import University, User
@@ -133,15 +132,6 @@ async def _university_chosen(
 
 
 # --- Вход в анкету ---
-
-
-@router.message(Command("register"), F.chat.type == ChatType.PRIVATE)
-async def cmd_register(message: Message, session: AsyncSession, state: FSMContext) -> None:
-    error = await registration_service.check_can_apply(session, message.from_user.id)
-    if error:
-        await message.answer(error)
-        return
-    await _begin_form(message, state)
 
 
 @router.message(

@@ -10,8 +10,10 @@ from datetime import date
 
 from bot import texts
 from bot.db.models import User
-from bot.enums import UserRole
+from bot.enums import PermissionModule, UserRole
 from bot.keyboards.common_kb import admin_panel_kb, info_menu_kb, main_menu_kb
+
+_ALL_MODULES = {module.value for module in PermissionModule}
 
 
 def _user(role: UserRole) -> User:
@@ -44,37 +46,72 @@ def test_approved_user_menu_replaces_registration_button():
     }
 
 
-def test_admin_mode_button_only_for_superadmin_and_owner():
-    for role in (UserRole.USER, UserRole.ORGANIZER, UserRole.ADMIN):
+def test_admin_mode_button_for_everyone_with_powers():
+    """Кнопку «Админство» видит каждый, у кого есть админские возможности.
+
+    Раньше её показывали только суперадминам, а обычный админ работал
+    командами. Команд больше нет, поэтому без этой кнопки он остался бы
+    вообще без инструментов.
+    """
+    for role in (UserRole.USER, UserRole.ORGANIZER):
         assert texts.BTN.ADMIN_MODE not in _labels(main_menu_kb(_user(role)))
-    for role in (UserRole.SUPERADMIN, UserRole.OWNER):
+    for role in (UserRole.ADMIN, UserRole.SUPERADMIN, UserRole.OWNER):
         assert texts.BTN.ADMIN_MODE in _labels(main_menu_kb(_user(role)))
 
+    personal = _user(UserRole.USER)
+    personal.custom_permissions = {"modules": [PermissionModule.CONTENT.value]}
+    assert texts.BTN.ADMIN_MODE in _labels(main_menu_kb(personal)), (
+        "Человеку выдали личный модуль, а входа в админку не дали."
+    )
 
-def test_content_editor_is_reachable_from_the_panel():
-    """Редактор страниц должен открываться кнопкой, а не только командой.
-
-    Так и было до 2026-08-02: страницы раздела «Информация» правились лишь
-    командой /content, которой не было ни в одном меню. Владелец искал их в
-    «Сценариях» — там их нет и быть не может (это другой редактор) — и сделал
-    вывод, что возможности просто не существует.
-    """
-    for is_owner in (True, False):
-        labels = _labels(admin_panel_kb(is_owner))
-        assert texts.BTN.ADMIN_PANEL_CONTENT in labels, (
-            "В панели «Админство» нет кнопки редактора страниц — найти его "
-            "снова можно будет только по памяти."
-        )
-        assert texts.BTN.ADMIN_PANEL_SCENARIOS in labels
-        assert texts.BTN.ADMIN_PANEL_USER_MODE in labels, "Из панели должен быть выход."
+    grouped = _user(UserRole.USER)
+    grouped.permission_group_id = 1
+    assert texts.BTN.ADMIN_MODE in _labels(main_menu_kb(grouped)), (
+        "Человека добавили в группу прав, а входа в админку не дали."
+    )
 
 
-def test_owner_only_buttons_in_the_panel():
-    owner = _labels(admin_panel_kb(True))
-    superadmin = _labels(admin_panel_kb(False))
+def test_panel_shows_only_allowed_sections():
+    """В панели ровно то, что человеку разрешено, — и ничего сверх."""
+    owner = _labels(admin_panel_kb(_user(UserRole.OWNER), _ALL_MODULES))
     for button in (texts.BTN.ADMIN_PANEL_LOGS, texts.BTN.ADMIN_PANEL_UPDATES):
         assert button in owner
-        assert button not in superadmin
+
+    superadmin = _labels(admin_panel_kb(_user(UserRole.SUPERADMIN), _ALL_MODULES))
+    assert texts.BTN.ADMIN_PANEL_CRUD in superadmin
+    for button in (texts.BTN.ADMIN_PANEL_LOGS, texts.BTN.ADMIN_PANEL_UPDATES):
+        assert button not in superadmin, "Разделы владельца не должны утекать суперадмину."
+
+    # Человеку выдали только «тексты»: кроме «Разделов» и выхода — ничего.
+    only_content = _labels(
+        admin_panel_kb(_user(UserRole.USER), {PermissionModule.CONTENT.value})
+    )
+    assert only_content == {texts.BTN.ADMIN_PANEL_CONTENT, texts.BTN.ADMIN_PANEL_USER_MODE}
+
+
+def test_every_former_command_has_its_section():
+    """У каждой убранной команды есть кнопка — иначе возможность потеряна.
+
+    2026-08-02 команды /content, /activities, /admins, /ban, /unban, /setrole
+    убраны. Всё, что они делали, должно открываться из панели.
+    """
+    owner = _labels(admin_panel_kb(_user(UserRole.OWNER), _ALL_MODULES))
+    for button in (
+        texts.BTN.ADMIN_PANEL_CONTENT,  # было /content
+        texts.BTN.ADMIN_PANEL_ACTIVITIES,  # было /activities
+        texts.BTN.ADMIN_PANEL_PERMS,  # было /admins
+        texts.BTN.ADMIN_PANEL_USERS,  # было /ban, /unban, /setrole
+    ):
+        assert button in owner, f"Команду убрали, а кнопку «{button}» не дали."
+    assert texts.BTN.ADMIN_PANEL_USER_MODE in owner, "Из панели должен быть выход."
+
+
+def test_moderator_reaches_users_section():
+    """Модуль «Бан и разбан» без раздела «Пользователи» бесполезен."""
+    labels = _labels(
+        admin_panel_kb(_user(UserRole.USER), {PermissionModule.MODERATION.value})
+    )
+    assert texts.BTN.ADMIN_PANEL_USERS in labels
 
 
 def test_guide_button_is_in_the_info_menu():
