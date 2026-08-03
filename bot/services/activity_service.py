@@ -51,12 +51,13 @@ def act_details(
 ) -> str:
     """Строки-детали заявки/карточки: только заполненные поля.
 
-    «Что нужно» идёт первым: по этой строке люди понимают, чем помочь. Пустой
-    она бывает у мероприятий, поданных до появления этого шага в анкете.
+    «Что нужно» идёт последним — уже после того, как человек прочитал, что за
+    мероприятие и кто его делает. По этой строке решают не «чем помочь», а
+    вписываться ли вообще и верится ли, что это состоится, — поэтому она
+    завершает карточку, а не открывает её. Пустой она бывает у мероприятий,
+    поданных до появления этого шага в анкете.
     """
     lines = ""
-    if needs_text:
-        lines += texts.ACT_NEEDS_LINE.format(needs=escape(needs_text))
     if organizers_text:
         lines += texts.ACT_ORGANIZERS_LINE.format(organizers=escape(organizers_text))
     if plan_url:
@@ -65,6 +66,8 @@ def act_details(
         lines += texts.ACT_CHAT_LINE.format(url=escape(chat_url))
     if admin_comment:
         lines += texts.ACT_COMMENT_LINE.format(comment=escape(admin_comment))
+    if needs_text:
+        lines += texts.ACT_NEEDS_LINE.format(needs=escape(needs_text))
     return lines
 
 

@@ -21,7 +21,7 @@ from bot.db.models import Activity, ActivityRequest, User
 from bot.enums import ActivityStatus, UserRole
 from bot.services.activity_service import _afisha_text, act_details, build_act_card
 
-NEEDS = "15 участников, из них 5 помогают; 100 000 ₽ на аренду; зал на 20 человек"
+NEEDS = "15 участников, пятеро помогают с организацией; взнос 500 ₽; квартира"
 
 
 @pytest.fixture
@@ -35,11 +35,15 @@ def author() -> User:
     )
 
 
-def test_needs_line_comes_first():
-    """По этой строке решают, идти ли помогать, — она не должна теряться внизу."""
+def test_needs_line_comes_last():
+    """Строка завершает карточку: её читают, уже зная, что за мероприятие.
+
+    Решение по ней принимают не «чем помочь», а вписываться ли вообще и
+    верится ли, что это состоится.
+    """
     details = act_details("@kto-to", "https://plan", "https://chat", "комментарий", needs_text=NEEDS)
     lines = [line for line in details.splitlines() if line]
-    assert NEEDS in lines[0]
+    assert NEEDS in lines[-1]
 
 
 def test_details_without_needs_have_no_empty_line():
@@ -83,7 +87,7 @@ def test_prompt_explains_what_to_write():
     prompt = texts.ACT_NEEDS_PROMPT.format(
         min=limits.ACT_NEEDS_MIN, max=limits.ACT_NEEDS_MAX
     )
-    for word in ("люди", "деньги", "помещение"):
+    for word in ("люди", "деньги", "место"):
         assert word in prompt.lower()
     assert str(limits.ACT_NEEDS_MAX) in prompt
 
