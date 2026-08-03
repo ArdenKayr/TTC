@@ -26,6 +26,9 @@ class ActivityRequest(Base):
     )
     title: Mapped[str] = mapped_column(sa.String(100))
     description: Mapped[str] = mapped_column(sa.Text)
+    # Что нужно, чтобы мероприятие состоялось: люди, деньги, помещение, реквизит.
+    # Пусто бывает только у заявок, поданных до появления этого шага в анкете.
+    needs_text: Mapped[str | None] = mapped_column(sa.Text)
     organizers_text: Mapped[str | None] = mapped_column(sa.Text)  # кто проводит, @ники
     plan_url: Mapped[str | None] = mapped_column(sa.String(512))  # план реализации
     chat_url: Mapped[str | None] = mapped_column(sa.String(512))  # беседа мероприятия
@@ -59,6 +62,8 @@ class Activity(Base):
     )
     title: Mapped[str] = mapped_column(sa.String(100))
     description: Mapped[str] = mapped_column(sa.Text)
+    # Что нужно для проведения — переносится из заявки и показывается в Афише.
+    needs_text: Mapped[str | None] = mapped_column(sa.Text)
     organizers_text: Mapped[str | None] = mapped_column(sa.Text)
     plan_url: Mapped[str | None] = mapped_column(sa.String(512))
     chat_url: Mapped[str | None] = mapped_column(sa.String(512))

@@ -47,9 +47,16 @@ def act_details(
     plan_url: str | None,
     chat_url: str | None,
     admin_comment: str | None = None,
+    needs_text: str | None = None,
 ) -> str:
-    """Строки-детали заявки/карточки: только заполненные поля."""
+    """Строки-детали заявки/карточки: только заполненные поля.
+
+    «Что нужно» идёт первым: по этой строке люди понимают, чем помочь. Пустой
+    она бывает у мероприятий, поданных до появления этого шага в анкете.
+    """
     lines = ""
+    if needs_text:
+        lines += texts.ACT_NEEDS_LINE.format(needs=escape(needs_text))
     if organizers_text:
         lines += texts.ACT_ORGANIZERS_LINE.format(organizers=escape(organizers_text))
     if plan_url:
@@ -69,7 +76,11 @@ def build_act_card(author: User, request: ActivityRequest) -> str:
         title=escape(request.title),
         description=escape(request.description),
         details=act_details(
-            request.organizers_text, request.plan_url, request.chat_url, request.admin_comment
+            request.organizers_text,
+            request.plan_url,
+            request.chat_url,
+            request.admin_comment,
+            needs_text=request.needs_text,
         ),
     )
 
@@ -103,7 +114,12 @@ def _afisha_text(activity: Activity, organizer: User | None) -> str:
         status_line=status_line,
         title=escape(activity.title),
         description=escape(activity.description),
-        details=act_details(activity.organizers_text, activity.plan_url, activity.chat_url),
+        details=act_details(
+            activity.organizers_text,
+            activity.plan_url,
+            activity.chat_url,
+            needs_text=activity.needs_text,
+        ),
         organizer=user_label(organizer),
     )
 
@@ -123,6 +139,7 @@ async def approve_activity(
         organizer_id=request.tg_id,
         title=request.title,
         description=request.description,
+        needs_text=request.needs_text,
         organizers_text=request.organizers_text,
         plan_url=request.plan_url,
         chat_url=request.chat_url,

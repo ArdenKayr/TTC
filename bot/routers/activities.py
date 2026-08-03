@@ -110,6 +110,26 @@ async def act_description(message: Message, state: FSMContext) -> None:
         )
         return
     await state.update_data(description=description)
+    await state.set_state(ActivityForm.needs)
+    await message.answer(
+        texts.ACT_NEEDS_PROMPT.format(min=limits.ACT_NEEDS_MIN, max=limits.ACT_NEEDS_MAX)
+    )
+
+
+@router.message(ActivityForm.needs, F.text, ~F.text.startswith("/"))
+async def act_needs(message: Message, state: FSMContext) -> None:
+    """Что нужно для проведения. Шаг обязательный: пропустить нельзя.
+
+    Свободный текст, а не набор полей: заранее не угадать, что понадобится —
+    людям, деньгам, помещению и реквизиту здесь одинаково находится место.
+    """
+    needs = message.text.strip()
+    if not limits.ACT_NEEDS_MIN <= len(needs) <= limits.ACT_NEEDS_MAX:
+        await message.answer(
+            texts.ACT_NEEDS_INVALID.format(min=limits.ACT_NEEDS_MIN, max=limits.ACT_NEEDS_MAX)
+        )
+        return
+    await state.update_data(needs_text=needs)
     await state.set_state(ActivityForm.organizers)
     await message.answer(
         texts.ACT_ORGANIZERS_PROMPT.format(max=limits.ACT_ORGANIZERS_MAX, skip=texts.BTN.SKIP),
@@ -180,6 +200,7 @@ async def _act_show_confirm(message: Message, state: FSMContext) -> None:
                 data.get("plan_url"),
                 data.get("chat_url"),
                 data.get("admin_comment"),
+                needs_text=data.get("needs_text"),
             ),
         ),
         reply_markup=confirm_kb(),
@@ -211,6 +232,7 @@ async def act_submit(
         tg_id=db_user.tg_id,
         title=data["title"],
         description=data["description"],
+        needs_text=data.get("needs_text"),
         organizers_text=data.get("organizers_text"),
         plan_url=data.get("plan_url"),
         chat_url=data.get("chat_url"),
