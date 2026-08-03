@@ -34,6 +34,24 @@ class ActivityStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class ReportStatus(str, Enum):
+    """Что происходит с репортом.
+
+    Статус нужен не для отчётности, а для человека, который его прислал:
+    каждый переход — повод написать автору, что с его жалобой. Без статуса
+    репорт был разовым сообщением в чат админов и дальше исчезал.
+    """
+
+    NEW = "new"
+    IN_PROGRESS = "in_progress"
+    DONE = "done"
+    DECLINED = "declined"
+
+
+# Репорт закрыт — новых уведомлений автору по нему не будет.
+CLOSED_REPORT_STATUSES = {ReportStatus.DONE, ReportStatus.DECLINED}
+
+
 class PermissionModule(str, Enum):
     """Независимые модули админских прав (подключаются группе или человеку)."""
 
@@ -42,6 +60,7 @@ class PermissionModule(str, Enum):
     CONTENT = "content"  # редактор текстов и файлов (/content)
     MODERATION = "moderation"  # бан/разбан
     ACTIVITIES = "activities"  # мероприятия и голосования
+    REPORTS = "reports"  # разбор репортов и переписка с их авторами
 
 
 class ActorType(str, Enum):
@@ -81,3 +100,5 @@ class AuditAction(str, Enum):
     CRUD_UPDATED = "crud_updated"
     CRUD_DELETED = "crud_deleted"
     UPDATE_PUBLISHED = "update_published"
+    REPORT_STATUS_CHANGED = "report_status_changed"
+    REPORT_ANSWERED = "report_answered"

@@ -24,7 +24,7 @@ users.university_id  →  universities.university_id
 
 ---
 
-## Все 13 таблиц одной строкой
+## Все 15 таблиц одной строкой
 
 | Таблица | Что хранит |
 |---|---|
@@ -41,6 +41,8 @@ users.university_id  →  universities.university_id
 | `audit_log` | Журнал: кто из админов что сделал и когда |
 | `content_blocks` | Тексты и картинки бота: разделы «Информации» (/content) и сценарии (`scen_*`) |
 | `error_log` | Ошибки бота: что сломалось, на каком вводе, полный трейсбек (копия уходит владельцу в ЛС) |
+| `reports` | Репорты участников: номер, текст, статус, кто ведёт |
+| `report_messages` | Переписка по репорту: ответы админов автору и его ответы им |
 
 ---
 
@@ -64,6 +66,10 @@ erDiagram
     activity_requests |o--o{ activities : "request_id"
     users |o--o{ audit_log : "actor_tg_id"
     users |o--o{ content_blocks : "updated_by"
+    users |o--o{ reports : "author_tg_id"
+    users |o--o{ reports : "taken_by"
+    users |o--o{ report_messages : "author_tg_id"
+    reports ||--o{ report_messages : "report_id"
 ```
 
 На каждой стрелке написана колонка, через которую идёт связь.
@@ -92,6 +98,10 @@ erDiagram
 | `vote_requests.processed_by` | → `users.tg_id` | Какой админ решил заявку на голосование |
 | `audit_log.actor_tg_id` | → `users.tg_id` | Кто совершил действие (пусто = сам бот) |
 | `content_blocks.updated_by` | → `users.tg_id` | Кто последним менял этот текст/картинку |
+| `reports.author_tg_id` | → `users.tg_id` | Кто прислал репорт (пусто = человека удалили, имя осталось строкой) |
+| `reports.taken_by` | → `users.tg_id` | Какой админ ведёт этот репорт |
+| `report_messages.report_id` | → `reports.report_id` | К какому репорту относится реплика (удалили репорт — переписка уходит с ним) |
+| `report_messages.author_tg_id` | → `users.tg_id` | Кто написал реплику |
 
 **Важная НЕ-связь.** В `registration_requests`, `university_requests` и `alias_suggestions`
 есть колонка `tg_id` — Telegram-номер заявителя. Она **специально не связана** с `users`:
@@ -291,18 +301,46 @@ erDiagram
 | `updated_by` | → `users.tg_id` — кто последним менял |
 | `updated_at` | Когда |
 
+### `reports` — репорты участников
+
+Жалоба, баг или идея, присланные кнопкой «🐞 Репорт». Раньше это было разовое
+сообщение в чат админов: нигде не хранилось, вернуться к нему было нельзя.
+
+| Колонка | Что лежит |
+|---|---|
+| `report_id` | Номер репорта. **Главный ключ**. Обычный счётчик, а не длинный код: его называют человеку («репорт №7») |
+| `author_tg_id` | → `users.tg_id` — кто прислал (пусто, если человека удалили) |
+| `author_name` | Имя автора на момент отправки — чтобы после удаления жалоба не стала анонимной |
+| `text` | Сам репорт, как его написал человек |
+| `status` | `new`, `in_progress`, `done`, `declined` — каждая смена сопровождается сообщением автору |
+| `taken_by` | → `users.tg_id` — какой админ ведёт репорт |
+| `card_message_id` | Сообщение-карточка в админ-чате: по нему она перерисовывается |
+| `created_at`, `updated_at` | Когда пришёл и когда последний раз что-то менялось |
+
+### `report_messages` — переписка по репорту
+
+| Колонка | Что лежит |
+|---|---|
+| `message_id` | Номер реплики. **Главный ключ** |
+| `report_id` | → `reports.report_id` — к какому репорту относится |
+| `from_admin` | `true` — админ писал автору, `false` — автор отвечал админам |
+| `author_tg_id`, `author_name` | Кто написал (имя сохраняется снимком) |
+| `text` | Сама реплика |
+| `created_at` | Когда |
+
 ---
 
 ## Справочные мелочи
 
-**Списки допустимых значений (enum), их всего 4:**
+**Списки допустимых значений (enum), их всего 5:**
 
 | Название | Значения | Где используется |
 |---|---|---|
-| `user_role` | user, organizer, admin, custom, banned | `users.current_role`, `users.role_before_ban` |
+| `user_role` | user, organizer, admin, superadmin, owner, custom, banned | `users.current_role`, `users.role_before_ban` |
 | `request_status` | pending, approved, rejected | статус во всех пяти таблицах заявок |
 | `activity_status` | active, completed, cancelled | `activities.status` |
 | `actor_type` | admin, system | `audit_log.actor_type` |
+| `report_status` | new, in_progress, done, declined | `reports.status` |
 
 **История миграций** (как база дошла до текущего вида):
 
@@ -316,9 +354,11 @@ erDiagram
 | `0006` | + мероприятия и голосования в упрощённом виде: `activity_requests`, `activities`, `vote_requests` |
 | `0007` | + значения `superadmin` и `owner` в enum `user_role` |
 | `0008` | заявка на мероприятие расширена: вместо `extra_url` — `organizers_text`, `plan_url`, `chat_url`, `admin_comment` |
-| `0012` | `needs_text` в заявках и мероприятиях — что нужно для проведения |
 | `0009` | + `error_log` — журнал ошибок бота для владельца |
 | `0010` | + `vote_requests.is_anonymous` — автор выбирает, анонимный опрос или видно, кто голосовал (у старых заявок остаётся «анонимный») |
+| `0011` | удаление любой записи: ссылки на удалённого обнуляются вместо запрета |
+| `0012` | `needs_text` в заявках и мероприятиях — что нужно для проведения |
+| `0013` | + `reports` и `report_messages` — репорт со статусом, номером и перепиской |
 
 **Посмотреть базу своими глазами:**
 

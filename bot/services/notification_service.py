@@ -22,13 +22,39 @@ async def send_admin_card(
 
 async def send_admin_report(
     bot: Bot, text: str, keyboard: InlineKeyboardMarkup | None = None
-) -> None:
-    await bot.send_message(
+) -> int:
+    """Сообщение в тему репортов. Возвращает message_id — по нему правится карточка.
+
+    Карточку репорта приходится править при каждой смене статуса: иначе в чате
+    копятся карточки с устаревшим статусом и живыми кнопками, и следующий админ
+    жмёт «В работе» по уже закрытому.
+    """
+    message = await bot.send_message(
         settings.admin_chat_id,
         text,
         reply_markup=keyboard,
         message_thread_id=settings.admin_topic_reports_id,
     )
+    return message.message_id
+
+
+async def edit_admin_card(
+    bot: Bot, message_id: int, text: str, keyboard: InlineKeyboardMarkup | None = None
+) -> bool:
+    """Правка карточки в админ-чате. Неудача не должна ронять действие админа.
+
+    Карточку могли удалить из чата, а Telegram отказывает и тогда, когда текст
+    не изменился. Ни то, ни другое не повод отменять уже принятое решение —
+    поэтому здесь только запись в журнал.
+    """
+    try:
+        await bot.edit_message_text(
+            text, chat_id=settings.admin_chat_id, message_id=message_id, reply_markup=keyboard
+        )
+        return True
+    except TelegramAPIError as e:
+        logger.warning("Failed to edit admin card %s: %s", message_id, e)
+        return False
 
 
 async def dm_user(bot: Bot, tg_id: int, text: str) -> bool:

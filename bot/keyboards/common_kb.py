@@ -27,6 +27,7 @@ MENU_BUTTON_TEXTS = {
     texts.BTN.ADMIN_PANEL_CONTENT,
     texts.BTN.ADMIN_PANEL_PERMS,
     texts.BTN.ADMIN_PANEL_ACTIVITIES,
+    texts.BTN.ADMIN_PANEL_REPORTS,
     texts.BTN.ADMIN_PANEL_LOGS,
     texts.BTN.ADMIN_PANEL_UPDATES,
     texts.BTN.ADMIN_PANEL_USER_MODE,
@@ -67,6 +68,8 @@ def admin_sections(user: User, modules: set[str]) -> list[str]:
         sections.append(texts.BTN.ADMIN_PANEL_USERS)
     if PermissionModule.ACTIVITIES.value in modules:
         sections.append(texts.BTN.ADMIN_PANEL_ACTIVITIES)
+    if PermissionModule.REPORTS.value in modules:
+        sections.append(texts.BTN.ADMIN_PANEL_REPORTS)
     if PermissionModule.CONTENT.value in modules:
         sections.append(texts.BTN.ADMIN_PANEL_CONTENT)
     if is_full_admin:

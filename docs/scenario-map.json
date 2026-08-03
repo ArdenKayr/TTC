@@ -346,11 +346,12 @@
             "owner"
           ],
           "handler": "bot/routers/user_menu.py:report_text",
-          "does": "Проверяет длину 5–2000 символов и отправляет карточку админам с именем автора и ссылкой на него.",
-          "shows": "«Спасибо! Репорт отправлен админам» и возврат главного меню. При неверной длине — просьбу написать ещё раз.",
+          "does": "Проверяет длину 5–2000 символов, заводит репорт с номером и показывает админам карточку с кнопками. Раньше это было разовое сообщение в чат: нигде не хранилось и никуда не вело.",
+          "shows": "«Спасибо! Репорт №N отправлен админам. Что с ним происходит, я напишу сюда» и возврат главного меню.",
           "next": [
             "menu_user",
-            "menu_super"
+            "menu_super",
+            "mod_report_card"
           ],
           "db_reads": [
             "users",
@@ -358,6 +359,9 @@
           ],
           "notifies": [
             "админам в админ-чат, топик репортов"
+          ],
+          "db_writes": [
+            "reports"
           ]
         },
         {
@@ -494,6 +498,101 @@
             "admin",
             "superadmin",
             "owner"
+          ]
+        },
+        {
+          "id": "report_answer_btn",
+          "trigger_kind": "inline_button",
+          "trigger_ref": "BTN.REPORT_REPLY",
+          "where": "dm",
+          "roles": [
+            "user",
+            "organizer",
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/user_menu.py:cb_report_answer",
+          "does": "Открывает форму ответа админам по этому репорту. Кнопка живёт в переписке долго, поэтому бот проверяет, что репорт ещё открыт и что нажал его автор.",
+          "shows": "Просьбу написать ответ по репорту №N (2–1000 символов) и кнопку «🚫 Отмена». Если репорт уже закрыт — «Этот репорт уже закрыт, отвечать по нему некому».",
+          "next": [
+            "report_answer_text",
+            "report_answer_cancel",
+            "report_answer_unexpected"
+          ],
+          "db_reads": [
+            "reports",
+            "users"
+          ]
+        },
+        {
+          "id": "report_answer_text",
+          "trigger_kind": "message",
+          "trigger_text": "текст ответа автора по репорту",
+          "where": "dm",
+          "roles": [
+            "user",
+            "organizer",
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/user_menu.py:report_answer_text",
+          "does": "Записывает ответ в переписку по репорту, перерисовывает карточку у админов и отдельным сообщением сообщает в тему репортов, что автор ответил.",
+          "shows": "«✅ Ответ отправлен админам» и возврат главного меню.",
+          "next": [
+            "menu_user",
+            "menu_super"
+          ],
+          "db_reads": [
+            "reports",
+            "users"
+          ],
+          "db_writes": [
+            "report_messages",
+            "reports"
+          ],
+          "notifies": [
+            "админам в админ-чат, тема репортов"
+          ]
+        },
+        {
+          "id": "report_answer_cancel",
+          "trigger_kind": "reply_button",
+          "trigger_ref": "BTN.REG_CANCEL",
+          "where": "dm",
+          "roles": [
+            "user",
+            "organizer",
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/user_menu.py:report_answer_cancel",
+          "does": "Бросает начатый ответ, в переписке ничего не остаётся.",
+          "shows": "«Главное меню:» и главное меню внизу.",
+          "next": [
+            "menu_user",
+            "menu_super"
+          ]
+        },
+        {
+          "id": "report_answer_unexpected",
+          "trigger_kind": "message",
+          "trigger_text": "скриншот или голосовое вместо текста ответа",
+          "where": "dm",
+          "roles": [
+            "user",
+            "organizer",
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/user_menu.py:report_answer_unexpected",
+          "does": "Отвечает на то, что шаг принять не может, и заново задаёт вопрос.",
+          "shows": "«Бот работает — просто на этом шаге он принимает только текст…» и следом снова просьбу написать ответ по репорту.",
+          "next": [
+            "report_answer_text"
           ]
         }
       ]
@@ -3181,6 +3280,278 @@
             "superadmin",
             "owner"
           ]
+        },
+        {
+          "id": "mod_report_card",
+          "trigger_kind": "auto",
+          "trigger_text": "после отправки репорта участником",
+          "where": "admin_chat",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "perm_module": "reports",
+          "handler": "bot/services/report_service.py:open_report",
+          "does": "Сохраняет репорт и показывает карточку в теме репортов. Сохранение идёт до отправки: не дошла карточка — репорт всё равно в очереди раздела «🐞 Репорты».",
+          "shows": "«🐞 Репорт №N — 🆕 новый», от кого, текст жалобы и кнопки «✍️ Ответить», «🔧 В работе», «✅ Готово», «🚫 Отклонить».",
+          "next": [
+            "mod_report_reply",
+            "mod_report_progress",
+            "mod_report_done",
+            "mod_report_decline"
+          ],
+          "db_reads": [
+            "users"
+          ],
+          "db_writes": [
+            "reports"
+          ],
+          "notifies": [
+            "админам в админ-чат, тема репортов"
+          ]
+        },
+        {
+          "id": "mod_reports",
+          "trigger_kind": "reply_button",
+          "trigger_ref": "BTN.ADMIN_PANEL_REPORTS",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "perm_module": "reports",
+          "handler": "bot/routers/admin/report_review.py:btn_reports",
+          "does": "Показывает очередь незакрытых репортов, самые новые сверху. Нужен, потому что карточка в чате уезжает вверх за час, а репорт живёт неделями.",
+          "shows": "По карточке на репорт — с тем же набором кнопок, что и в админ-чате.",
+          "next": [
+            "mod_reports_empty",
+            "mod_report_reply",
+            "mod_report_progress",
+            "mod_report_done",
+            "mod_report_decline"
+          ],
+          "db_reads": [
+            "reports",
+            "report_messages",
+            "users"
+          ]
+        },
+        {
+          "id": "mod_reports_empty",
+          "trigger_kind": "auto",
+          "trigger_text": "открыли раздел, а незакрытых репортов нет",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "perm_module": "reports",
+          "handler": "bot/routers/admin/report_review.py:btn_reports",
+          "does": "Ничего не показывает — очередь пуста.",
+          "shows": "«Незакрытых репортов нет.»"
+        },
+        {
+          "id": "mod_report_reply",
+          "trigger_kind": "inline_button",
+          "trigger_ref": "BTN.REPORT_REPLY",
+          "where": "admin_chat",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "perm_module": "reports",
+          "handler": "bot/routers/admin/report_review.py:cb_report_reply",
+          "does": "Начинает ответ автору: бот ждёт одно сообщение и помнит, к какому репорту оно относится.",
+          "shows": "«✍️ Напишите ответ автору репорта №N…» и кнопку «🚫 Не отвечать».",
+          "next": [
+            "mod_report_reply_text",
+            "mod_report_reply_cancel",
+            "mod_report_reply_unexpected"
+          ],
+          "db_reads": [
+            "reports"
+          ]
+        },
+        {
+          "id": "mod_report_reply_text",
+          "trigger_kind": "message",
+          "trigger_text": "текст ответа админа автору репорта",
+          "where": "admin_chat",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "perm_module": "reports",
+          "handler": "bot/routers/admin/report_review.py:reply_text",
+          "does": "Записывает ответ в переписку, отправляет его автору в личку с кнопкой «✍️ Ответить» и перерисовывает карточку.",
+          "shows": "«✅ Ответ отправлен автору». Если автору не дошло или его удалили из базы — об этом прямо сказано, ответ при этом остаётся в переписке.",
+          "next": [
+            "report_answer_btn"
+          ],
+          "db_reads": [
+            "reports",
+            "content_blocks"
+          ],
+          "db_writes": [
+            "report_messages",
+            "reports",
+            "audit_log"
+          ],
+          "notifies": [
+            "автору репорта в ЛС"
+          ]
+        },
+        {
+          "id": "mod_report_reply_cancel",
+          "trigger_kind": "inline_button",
+          "trigger_ref": "BTN.REPORT_REPLY_CANCEL",
+          "where": "admin_chat",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "perm_module": "reports",
+          "handler": "bot/routers/admin/report_review.py:cb_report_reply_cancel",
+          "does": "Бросает начатый ответ, автору ничего не уходит.",
+          "shows": "Вместо просьбы написать ответ — «Ответ отменён»."
+        },
+        {
+          "id": "mod_report_reply_menu",
+          "trigger_kind": "message",
+          "trigger_text": "кнопка меню нажата посреди ответа",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "perm_module": "reports",
+          "handler": "bot/routers/admin/report_review.py:reply_menu_pressed",
+          "does": "Считает нажатие выходом, а не текстом ответа: иначе «📄 Разделы» ушло бы автору репорта.",
+          "shows": "«🛠 Режим админства» и меню панели внизу.",
+          "db_reads": [
+            "users",
+            "permission_groups"
+          ]
+        },
+        {
+          "id": "mod_report_reply_unexpected",
+          "trigger_kind": "message",
+          "trigger_text": "вложение или команда вместо текста ответа",
+          "where": "admin_chat",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "perm_module": "reports",
+          "handler": "bot/routers/admin/report_review.py:reply_unexpected",
+          "does": "Отвечает на то, что шагом не принимается, и повторяет просьбу.",
+          "shows": "Объяснение, что именно не подошло, и снова просьбу написать ответ по репорту №N.",
+          "next": [
+            "mod_report_reply_text"
+          ]
+        },
+        {
+          "id": "mod_report_progress",
+          "trigger_kind": "inline_button",
+          "trigger_ref": "BTN.REPORT_PROGRESS",
+          "where": "admin_chat",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "perm_module": "reports",
+          "handler": "bot/routers/admin/report_review.py:cb_report_status",
+          "does": "Ставит статус «в работе», записывает, кто ведёт репорт, и сообщает об этом автору.",
+          "shows": "Карточка перерисовывается: «🔧 в работе» и кто ведёт. Автору в личку — «Над вашим репортом №N началась работа» с кнопкой «✍️ Ответить».",
+          "next": [
+            "report_answer_btn"
+          ],
+          "db_reads": [
+            "reports",
+            "content_blocks"
+          ],
+          "db_writes": [
+            "reports",
+            "audit_log"
+          ],
+          "notifies": [
+            "автору репорта в ЛС"
+          ]
+        },
+        {
+          "id": "mod_report_done",
+          "trigger_kind": "inline_button",
+          "trigger_ref": "BTN.REPORT_DONE",
+          "where": "admin_chat",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "perm_module": "reports",
+          "handler": "bot/routers/admin/report_review.py:cb_report_status",
+          "does": "Закрывает репорт как сделанный и сообщает автору.",
+          "shows": "Карточка помечена «✅ сделано», кнопки решений уходят. Автору в личку — «По репорту №N всё готово», уже без кнопки ответа.",
+          "db_reads": [
+            "reports",
+            "content_blocks"
+          ],
+          "db_writes": [
+            "reports",
+            "audit_log"
+          ],
+          "notifies": [
+            "автору репорта в ЛС"
+          ]
+        },
+        {
+          "id": "mod_report_decline",
+          "trigger_kind": "inline_button",
+          "trigger_ref": "BTN.REPORT_DECLINE",
+          "where": "admin_chat",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "perm_module": "reports",
+          "handler": "bot/routers/admin/report_review.py:cb_report_status",
+          "does": "Закрывает репорт без изменений и сообщает автору.",
+          "shows": "Карточка помечена «🚫 отклонён». Автору в личку — что менять ничего не будут и что с новой темой можно прийти через «🐞 Репорт».",
+          "db_reads": [
+            "reports",
+            "content_blocks"
+          ],
+          "db_writes": [
+            "reports",
+            "audit_log"
+          ],
+          "notifies": [
+            "автору репорта в ЛС"
+          ]
+        },
+        {
+          "id": "mod_report_denied",
+          "trigger_kind": "inline_button",
+          "trigger_text": "кнопка карточки репорта без модуля «Репорты»",
+          "where": "admin_chat",
+          "roles": [
+            "user",
+            "organizer",
+            "admin"
+          ],
+          "handler": "bot/routers/admin/report_review.py:cb_no_permission",
+          "does": "Не пропускает решение по репорту без нужного модуля прав.",
+          "shows": "Всплывающее окно «Это действие доступно только админам»."
         }
       ]
     },
@@ -5552,6 +5923,25 @@
             "users",
             "permission_groups"
           ]
+        },
+        {
+          "id": "perm_reports",
+          "trigger_kind": "auto",
+          "trigger_text": "модуль прав «Репорты»",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "perm_module": "reports",
+          "handler": "bot/services/permission_service.py:MODULES",
+          "does": "Открывает разбор репортов: раздел «🐞 Репорты» в панели и кнопки под карточками в админ-чате.",
+          "shows": "В списке модулей группы прав — строка «Репорты».",
+          "next": [
+            "mod_reports",
+            "mod_report_card"
+          ]
         }
       ]
     }
@@ -5948,6 +6338,57 @@
         "Карточка ошибки, которую бот присылает владельцу в личные сообщения",
         "Таблица «Логи ошибок» в служебной панели просмотра базы (у владельца — с правом менять и удалять)",
         "Обычным участникам не показывается — они видят лишь вежливое «что-то пошло не так»"
+      ]
+    },
+    {
+      "name": "reports",
+      "title": "Репорты",
+      "purpose": "Жалобы, баги и идеи от участников — с номером, статусом и тем, кто ведёт разбор. Раньше репорт был сообщением в чат админов и нигде не хранился: вернуться к нему было нельзя, автор ничего не узнавал.",
+      "key_fields": [
+        "report_id — номер репорта; его называют человеку («репорт №7»), поэтому он обычный счётчик, а не длинный код",
+        "author_tg_id — кто прислал; при удалении человека ссылка опустеет, а репорт останется",
+        "author_name — имя автора на момент отправки: иначе после удаления жалоба стала бы анонимной",
+        "text — сам репорт, как его написал человек",
+        "status — новый, в работе, сделано или отклонён; каждая смена — повод написать автору",
+        "taken_by — кто взял в работу, чтобы за один репорт не брались двое",
+        "card_message_id — карточка в админ-чате; по нему она перерисовывается при смене статуса"
+      ],
+      "links": [
+        "reports.author_tg_id -> users.tg_id",
+        "reports.taken_by -> users.tg_id",
+        "reports.report_id -> report_messages.report_id"
+      ],
+      "written_by": [
+        "Человек отправляет репорт кнопкой «🐞 Репорт» — появляется запись со статусом «новый»",
+        "Админ жмёт «🔧 В работе», «✅ Готово» или «🚫 Отклонить» — меняется статус и тот, кто ведёт",
+        "Бот проставляет card_message_id сразу после того, как карточка встала в админ-чате"
+      ],
+      "read_by": [
+        "Раздел «🛠 Админство» → «🐞 Репорты»: очередь незакрытых",
+        "Карточка репорта в админ-чате при каждой перерисовке",
+        "Проверка перед ответом автора: репорт ещё открыт и это его репорт"
+      ]
+    },
+    {
+      "name": "report_messages",
+      "title": "Переписка по репортам",
+      "purpose": "Разговор вокруг репорта: что админ ответил автору и что тот ответил в ответ. Нужен, чтобы админ, открывший репорт через неделю, видел, о чём уже говорили.",
+      "key_fields": [
+        "report_id — к какому репорту относится; удалили репорт — переписка уходит вместе с ним",
+        "from_admin — кто писал: админ автору или автор админам",
+        "author_tg_id + author_name — кто именно написал (имя сохраняется снимком)",
+        "text — сама реплика"
+      ],
+      "links": [
+        "report_messages.report_id -> reports.report_id",
+        "report_messages.author_tg_id -> users.tg_id"
+      ],
+      "written_by": [
+        "Админ отвечает автору кнопкой «✍️ Ответить» под карточкой",
+        "Автор отвечает админам кнопкой «✍️ Ответить» под сообщением в личке"
+      ],
+      "read_by": [
+        "Карточка репорта: последние реплики видны прямо в ней"
       ]
     }
   ],
@@ -6392,6 +6833,46 @@
         "mod_setrole",
         "mod_setrole_dm_failed",
         "mod_unban"
+      ]
+    },
+    {
+      "key": "report_progress",
+      "title": "Репорт взят в работу",
+      "files": [
+        "bot/services/report_service.py"
+      ],
+      "nodes": [
+        "mod_report_progress"
+      ]
+    },
+    {
+      "key": "report_done",
+      "title": "Репорт закрыт: сделано",
+      "files": [
+        "bot/services/report_service.py"
+      ],
+      "nodes": [
+        "mod_report_done"
+      ]
+    },
+    {
+      "key": "report_declined",
+      "title": "Репорт закрыт: менять не будем",
+      "files": [
+        "bot/services/report_service.py"
+      ],
+      "nodes": [
+        "mod_report_decline"
+      ]
+    },
+    {
+      "key": "report_reply",
+      "title": "Ответ админа автору репорта",
+      "files": [
+        "bot/services/report_service.py"
+      ],
+      "nodes": [
+        "mod_report_reply_text"
       ]
     }
   ],

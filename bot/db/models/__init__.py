@@ -4,6 +4,7 @@ from bot.db.models.content import ContentBlock
 from bot.db.models.error import ErrorLog
 from bot.db.models.permission import PermissionGroup
 from bot.db.models.registration import RegistrationRequest
+from bot.db.models.report import Report, ReportMessage
 from bot.db.models.university import (
     AliasSuggestion,
     University,
@@ -21,6 +22,8 @@ __all__ = [
     "ErrorLog",
     "PermissionGroup",
     "RegistrationRequest",
+    "Report",
+    "ReportMessage",
     "University",
     "UniversityAlias",
     "UniversityRequest",

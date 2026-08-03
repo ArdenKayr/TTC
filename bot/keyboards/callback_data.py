@@ -183,3 +183,20 @@ class LogCB(CallbackData, prefix="olog"):
 
 class UpdatePostCB(CallbackData, prefix="oupd"):
     action: str  # send | cancel
+
+
+class ReportCB(CallbackData, prefix="rep"):
+    """Кнопки под карточкой репорта у админов."""
+
+    action: str  # reply | progress | done | decline
+    report_id: int
+
+
+class ReportReplyCB(CallbackData, prefix="repcancel"):
+    """Отмена начатого ответа по репорту."""
+
+
+class ReportAnswerCB(CallbackData, prefix="repans"):
+    """«Ответить» под сообщением, которое пришло автору репорта."""
+
+    report_id: int

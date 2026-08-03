@@ -130,6 +130,8 @@ FORMS = [
     ("VoteForm", "bot/routers/activities.py", ("VoteForm", "_ANY_FORM")),
     ("ProfileForm", "bot/routers/profile.py", ("ProfileForm",)),
     ("ReportForm", "bot/routers/user_menu.py", ("ReportForm",)),
+    ("ReportAnswerForm", "bot/routers/user_menu.py", ("ReportAnswerForm",)),
+    ("ReportReplyForm", "bot/routers/admin/report_review.py", ("ReportReplyForm",)),
     ("SuperadminForm", "bot/routers/superadmin.py", ("SuperadminForm",)),
     ("CrudForm", "bot/routers/admin/crud_admin.py", ("CrudForm",)),
     ("ContentEditForm", "bot/routers/admin/content_admin.py", ("ContentEditForm",)),

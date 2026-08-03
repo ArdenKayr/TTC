@@ -19,6 +19,7 @@ from bot.routers.admin.owner_panel import router as owner_panel_router
 from bot.routers.admin.scenario_admin import router as scenario_admin_router
 from bot.routers.admin.permissions_admin import router as permissions_admin_router
 from bot.routers.admin.registration_review import router as registration_review_router
+from bot.routers.admin.report_review import router as report_review_router
 from bot.routers.admin.university_review import router as university_review_router
 from bot.routers.common import router as common_router
 from bot.routers.group.admin_chat import router as admin_chat_router
@@ -60,6 +61,7 @@ async def main() -> None:
         registration_review_router,
         university_review_router,
         activity_review_router,
+        report_review_router,
         permissions_admin_router,
         content_admin_router,
         registration_router,

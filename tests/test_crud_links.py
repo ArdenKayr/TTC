@@ -15,6 +15,8 @@
 from __future__ import annotations
 
 import asyncio
+import re
+from pathlib import Path
 
 import pytest
 
@@ -241,18 +243,36 @@ def test_related_says_nothing_when_no_one_points_here() -> None:
     assert "ничто не ссылается" in crud_service.describe_links(groups)
 
 
+_VERSIONS = Path(__file__).resolve().parent.parent / "migrations" / "versions"
+
+
 def _migration_0011():
     """Миграция, которая перевела связи на обнуление."""
     import importlib.util
-    from pathlib import Path
 
-    path = Path(__file__).resolve().parent.parent / "migrations" / "versions"
     spec = importlib.util.spec_from_file_location(
-        "migration_0011", path / "0011_deletable_records.py"
+        "migration_0011", _VERSIONS / "0011_deletable_records.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _tables_created_after_0011() -> set[str]:
+    """Таблицы, заведённые уже после 0011.
+
+    Такая таблица создаётся сразу с нужным правилом удаления — переделывать
+    её 0011 не может и не должна. Считаем их по самим миграциям, а не списком
+    в тесте: список пришлось бы пополнять вручную, и он бы отстал.
+    """
+    created: set[str] = set()
+    for path in sorted(_VERSIONS.glob("[0-9]*.py")):
+        if path.name[:4] <= "0011":
+            continue
+        created |= set(
+            re.findall(r'create_table\(\s*"([a-z_]+)"', path.read_text(encoding="utf-8"))
+        )
+    return created
 
 
 def test_migration_covers_exactly_the_cleared_links() -> None:
@@ -263,11 +283,12 @@ def test_migration_covers_exactly_the_cleared_links() -> None:
     удаление снова начнёт упираться. Проверяем в обе стороны.
     """
     module = _migration_0011()
+    born_later = _tables_created_after_0011()
     in_migration = {(table, column) for table, column, *_ in module._LINKS}
     in_models = {
         (table.name, column.name)
         for table, column, fk in _all_links()
-        if (fk.ondelete or "").upper() == "SET NULL"
+        if (fk.ondelete or "").upper() == "SET NULL" and table.name not in born_later
     }
 
     forgotten = sorted(in_models - in_migration)

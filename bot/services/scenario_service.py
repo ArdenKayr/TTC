@@ -110,7 +110,29 @@ _LIST = [
         texts.VOTE_REJECTED_DM,
         ("question",),
     ),
-    Scenario("report_sent", "Репорт принят", G_PROFILE, texts.REPORT_SENT),
+    Scenario("report_sent", "Репорт принят", G_PROFILE, texts.REPORT_SENT, ("number",)),
+    Scenario(
+        "report_progress",
+        "Репорт взят в работу",
+        G_PROFILE,
+        texts.REPORT_PROGRESS_DM,
+        ("number",),
+    ),
+    Scenario("report_done", "Репорт закрыт: сделано", G_PROFILE, texts.REPORT_DONE_DM, ("number",)),
+    Scenario(
+        "report_declined",
+        "Репорт закрыт: менять не будем",
+        G_PROFILE,
+        texts.REPORT_DECLINED_DM,
+        ("number",),
+    ),
+    Scenario(
+        "report_reply",
+        "Ответ админа автору репорта",
+        G_PROFILE,
+        texts.REPORT_REPLY_DM,
+        ("number", "text"),
+    ),
     Scenario(
         "role_changed",
         "Роль изменена админом",
@@ -225,7 +247,7 @@ async def dm(
     key: str,
     *,
     suffix: str = "",
-    reply_markup: ReplyKeyboardMarkup | ReplyKeyboardRemove | None = None,
+    reply_markup: InlineKeyboardMarkup | ReplyKeyboardMarkup | ReplyKeyboardRemove | None = None,
     **params,
 ) -> Delivery:
     """Сообщение сценария в ЛС. Что вернулось — см. Delivery.
@@ -233,6 +255,8 @@ async def dm(
     reply_markup нужен там, где решение админа меняет статус человека:
     нижнее меню в Telegram живёт, пока его явно не заменят новым сообщением,
     поэтому одобренный участник иначе остался бы с кнопкой «Регистрация».
+    Инлайн-клавиатура тоже допустима: ответ по репорту приходит с кнопкой
+    «✍️ Ответить» — без неё разговор был бы односторонним.
     Если сообщение уходит файлом и текст не влез в подпись, клавиатура
     ставится на последнее отправленное сообщение — чтобы не мигала дважды.
 

@@ -41,6 +41,7 @@ class BTN:
     ADMIN_PANEL_CONTENT = "📄 Разделы"
     ADMIN_PANEL_PERMS = "⚙️ Права"
     ADMIN_PANEL_ACTIVITIES = "📅 Мероприятия"
+    ADMIN_PANEL_REPORTS = "🐞 Репорты"
     ADMIN_PANEL_LOGS = "📜 Логи"
     ADMIN_PANEL_UPDATES = "📢 Обновления"
     ADMIN_PANEL_USER_MODE = "⬅️ Пользователь"
@@ -99,6 +100,11 @@ class BTN:
     CRUD_DELETE_YES = "🗑 Да, удалить"
     CRUD_BACK_TABLES = "⬅️ Таблицы"
     CRUD_BACK_LIST = "⬅️ Список"
+    REPORT_REPLY = "✍️ Ответить"
+    REPORT_PROGRESS = "🔧 В работе"
+    REPORT_DONE = "✅ Готово"
+    REPORT_DECLINE = "🚫 Отклонить"
+    REPORT_REPLY_CANCEL = "🚫 Не отвечать"
 
 
 ROLE_LABELS = {
@@ -275,8 +281,80 @@ UNBAN_TARGET_DM_DEFAULT = "✅ Блокировка снята. Добро по�
 
 # --- Репорты (кнопка «🐞 Репорт» и вызов @admin в группе) ---
 REPORT_NOT_REGISTERED = "Репорты доступны после регистрации — нажмите «📝 Регистрация»."
-REPORT_SENT = "Спасибо! Репорт отправлен админам."
-REPORT_CARD = "🐞 Репорт от {name} ({username}):\n\n{text}"
+REPORT_SENT = (
+    "Спасибо! Репорт №{number} отправлен админам. "
+    "Что с ним происходит, я напишу сюда."
+)
+REPORT_CARD = (
+    "🐞 <b>Репорт №{number}</b> — {status}\n"
+    "От: {author}\n\n"
+    "{text}"
+)
+# Автора удалили из базы, а репорт остался: имя берём из снимка, сделанного
+# при отправке, — иначе жалоба стала бы анонимной.
+REPORT_AUTHOR_DELETED = "{name} (запись удалена)"
+REPORT_CARD_TAKEN = "\n\n👤 Ведёт: <b>{name}</b>"
+# Переписка в карточке: последние реплики, чтобы админ видел, о чём уже говорили.
+REPORT_CARD_TALK_HEAD = "\n\n💬 Переписка ({count}):"
+REPORT_CARD_TALK_ADMIN = "\n✉️ <b>{name}</b>: {text}"
+REPORT_CARD_TALK_AUTHOR = "\n💬 <b>{name}</b>: {text}"
+REPORT_CARD_TALK_MORE = "\n… и ещё {count} — выше в этой теме."
+REPORT_STATUS_LABELS = {
+    "new": "🆕 новый",
+    "in_progress": "🔧 в работе",
+    "done": "✅ сделано",
+    "declined": "🚫 отклонён",
+}
+
+# Разбор репортов админами.
+REPORT_LIST_EMPTY = "Незакрытых репортов нет."
+REPORT_GONE = "Такого репорта больше нет."
+REPORT_SAME_STATUS = "Репорт уже в этом состоянии."
+REPORT_STATUS_SAVED = "Готово"
+REPORT_REPLY_PROMPT = (
+    "✍️ Напишите ответ автору репорта №{number} — он придёт ему в личку "
+    "({min}–{max} символов)."
+)
+REPORT_REPLY_INVALID = "Ответ — от {min} до {max} символов. Попробуйте ещё раз:"
+REPORT_REPLY_SENT = "✅ Ответ отправлен автору."
+REPORT_REPLY_FAILED = (
+    "⚠️ Ответ сохранён в переписке, но автору не дошёл: он не запускал бота "
+    "или заблокировал его."
+)
+REPORT_REPLY_NO_ADDRESSEE = (
+    "⚠️ Ответ сохранён в переписке, но отправлять некому: автора удалили из базы."
+)
+REPORT_REPLY_CANCELLED = "Ответ отменён."
+REPORT_NOTICE_FAILED = (
+    "⚠️ Статус изменён, но автору не дошло: он не запускал бота или заблокировал его."
+)
+REPORT_NOTICE_NO_ADDRESSEE = "⚠️ Статус изменён. Автора удалили из базы — сообщать некому."
+REPORT_ANSWER_IN_CHAT = "💬 Ответ по репорту №{number} от {name}:\n\n{text}"
+
+# Ответ автора репорта.
+REPORT_ANSWER_PROMPT = (
+    "✍️ Напишите ответ админам по репорту №{number} — {min}–{max} символов."
+)
+REPORT_ANSWER_SENT = "✅ Ответ отправлен админам."
+REPORT_ANSWER_CLOSED = (
+    "Этот репорт уже закрыт — отвечать по нему некому. "
+    "Если есть что добавить, нажмите «🐞 Репорт» и опишите заново."
+)
+
+# Уведомления автору о ходе дела (сценарии — суперадмины меняют текст без кода).
+REPORT_PROGRESS_DM = (
+    "🔧 Над вашим репортом №{number} началась работа. "
+    "Как будет результат — напишу сюда."
+)
+REPORT_DONE_DM = (
+    "✅ По репорту №{number} всё готово. Спасибо, что написали, — "
+    "из таких сообщений и получаются обновления."
+)
+REPORT_DECLINED_DM = (
+    "🚫 Репорт №{number} закрыт: менять ничего не будем. "
+    "Если тема осталась — нажмите «🐞 Репорт» и опишите заново."
+)
+REPORT_REPLY_DM = "✉️ Ответ по вашему репорту №{number}:\n\n{text}"
 ADMIN_CALL_REPORT = "🆘 {who} зовёт админов в группе:\n{link}"
 # Маркер «взялись»: по его наличию в тексте определяется, что вызов уже разобран.
 ADMIN_CALL_CLAIMED_MARK = "🙋 Взялся(-ась):"
