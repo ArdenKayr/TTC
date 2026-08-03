@@ -97,6 +97,32 @@ def check_tests() -> None:
     run([str(python) if python.exists() else sys.executable, "-m", "pytest", "-q"])
 
 
+def check_target_ready(target: Target) -> None:
+    """Папка контура есть и настроена.
+
+    Без этой проверки первая же выкатка в свежий контур падала бы ошибкой
+    docker compose про пустые переменные — по ней не догадаться, что дело в
+    ненастроенном `.env`.
+    """
+    state = ssh(
+        f"test -d {target.path} && (test -f {target.path}/.env && echo ok || echo no-env) "
+        f"|| echo no-dir",
+        capture=True,
+    )
+    if state == "no-dir":
+        raise DeployError(
+            f"На сервере нет папки {target.path} — контур ещё не заводили.\n"
+            "Как это делается, пошагово написано в docs/TEST_ENV.md."
+        )
+    if state == "no-env":
+        raise DeployError(
+            f"В {target.path} нет файла .env — контур не настроен.\n"
+            "Там должны быть свой токен бота, свои чаты и свой пароль базы; "
+            f"рядом лежит образец {target.path}/.env.example.\n"
+            "Пошагово — docs/TEST_ENV.md."
+        )
+
+
 def read_stamp(target: Target) -> tuple[str, str] | None:
     """Что и когда выкатывали в этот контур. None — отметки ещё нет."""
     raw = ssh(f"cat {target.path}/{STAMP} 2>/dev/null || true", capture=True)
@@ -167,6 +193,8 @@ def deploy(target: Target, *, skip_tests: bool, assume_yes: bool, force: bool) -
         print("!! Тесты пропущены (--no-tests). Вы выкатываете непроверенный код.")
     else:
         check_tests()
+
+    check_target_ready(target)
 
     if target.key == "prod":
         if force:
