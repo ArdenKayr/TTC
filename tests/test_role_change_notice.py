@@ -17,6 +17,7 @@ from bot import texts
 from bot.db.models import User
 from bot.enums import UserRole
 from bot.services import role_service
+from bot.services.scenario_service import Delivery
 
 
 def _user(tg_id: int, role: UserRole) -> User:
@@ -36,7 +37,7 @@ class _Session:
 @pytest.fixture
 def calls(monkeypatch):
     """Подменяет всё, что ходит наружу, и записывает вызовы."""
-    log = SimpleNamespace(dm=[], issues=[], delivered=True)
+    log = SimpleNamespace(dm=[], issues=[], delivered=Delivery.SENT)
 
     async def fake_add(*args, **kwargs):
         pass
@@ -90,7 +91,7 @@ def test_demotion_takes_admin_button_away(calls):
 
 def test_undelivered_notice_lands_in_logs(calls):
     """Человек не запускал бота — операция успешна, но след обязан остаться."""
-    calls.delivered = False
+    calls.delivered = Delivery.FAILED
     result, _ = _promote()
 
     assert result.error is None

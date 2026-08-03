@@ -278,7 +278,8 @@ async def update_start_over(
 
 async def _show_preview(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
-    entry = update_service.build_entry(data["text"])
+    # Показываем ровно то, что получат люди, — вместе с припиской про раздел.
+    entry = update_service.build_broadcast(update_service.build_entry(data["text"]))
     await message.answer(texts.UPD_PREVIEW)
     if data.get("file_id"):
         send = (

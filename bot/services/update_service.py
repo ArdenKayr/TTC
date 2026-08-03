@@ -24,8 +24,20 @@ _SEND_PAUSE = 0.05  # пауза между личками, чтобы не уп
 
 
 def build_entry(text: str) -> str:
+    """Запись обновления — то, что ложится в архив раздела «Обновления»."""
     date_str = datetime.now(timezone.utc).strftime("%d.%m.%Y")
     return texts.UPD_ENTRY_HEADER.format(date=date_str) + text
+
+
+def build_broadcast(entry: str) -> str:
+    """То же, но для личного сообщения: с припиской, где искать раздел.
+
+    В архив приписка не идёт — там она повторялась бы у каждой записи, хотя
+    человек и так уже стоит в этом разделе, когда его читает.
+    """
+    return entry + texts.UPD_ENTRY_FOOTER.format(
+        info=texts.BTN.INFO, updates=texts.BTN.INFO_UPDATES
+    )
 
 
 async def publish_update(
@@ -62,18 +74,19 @@ async def publish_update(
     tg_ids = list(
         await session.scalars(select(User.tg_id).where(User.current_role != UserRole.BANNED))
     )
+    message = build_broadcast(entry)
     delivered = 0
     for tg_id in tg_ids:
         try:
             if file_id is not None:
                 send = bot.send_photo if file_type == "photo" else bot.send_document
-                if len(entry) <= content_service.CAPTION_LIMIT:
-                    await send(tg_id, file_id, caption=entry)
+                if len(message) <= content_service.CAPTION_LIMIT:
+                    await send(tg_id, file_id, caption=message)
                 else:
                     await send(tg_id, file_id)
-                    await bot.send_message(tg_id, entry)
+                    await bot.send_message(tg_id, message)
             else:
-                await bot.send_message(tg_id, entry)
+                await bot.send_message(tg_id, message)
             delivered += 1
         except TelegramAPIError as e:
             logger.warning("Update broadcast: failed to DM %s: %s", tg_id, e)

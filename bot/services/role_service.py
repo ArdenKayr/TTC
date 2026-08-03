@@ -83,7 +83,7 @@ async def set_role(
         reply_markup=main_menu_kb(target),
         role=texts.ROLE_LABELS.get(new_role, new_role.value),
     )
-    if not delivered:
+    if delivered.is_problem:
         await error_service.report_issue(
             bot,
             source="Смена роли",
@@ -95,7 +95,7 @@ async def set_role(
                 "обновится само, когда он нажмёт /start."
             ),
         )
-    return RoleChange(None, delivered)
+    return RoleChange(None, delivered is scenario_service.Delivery.SENT)
 
 
 async def ban_user(

@@ -174,7 +174,7 @@ async def approve_activity(
     delivered = await scenario_service.dm(
         bot, session, author.tg_id, dm_key, title=escape(request.title)
     )
-    if not delivered:
+    if delivered.is_problem:
         notes.append(texts.NOTE_DM_FAILED)
         await error_service.report_issue(
             bot,
@@ -208,7 +208,7 @@ async def reject_activity(
     delivered = await scenario_service.dm(
         bot, session, request.tg_id, "act_rejected", title=escape(request.title)
     )
-    if not delivered:
+    if delivered.is_problem:
         notes.append(texts.NOTE_DM_FAILED)
         await error_service.report_issue(
             bot,
@@ -256,7 +256,7 @@ async def approve_vote(
     delivered = await scenario_service.dm(
         bot, session, request.tg_id, "vote_approved", question=escape(request.question)
     )
-    if not delivered:
+    if delivered.is_problem:
         notes.append(texts.NOTE_DM_FAILED)
         await error_service.report_issue(
             bot,
@@ -289,7 +289,7 @@ async def reject_vote(
     delivered = await scenario_service.dm(
         bot, session, request.tg_id, "vote_rejected", question=escape(request.question)
     )
-    if not delivered:
+    if delivered.is_problem:
         notes.append(texts.NOTE_DM_FAILED)
         await error_service.report_issue(
             bot,
@@ -323,7 +323,10 @@ async def finish_activity(
     )
 
     activity.status = ActivityStatus.CANCELLED if cancelled else ActivityStatus.COMPLETED
-    if activity.afisha_message_id is not None and organizer is not None:
+    # Организатора могли удалить из базы — карточку всё равно надо пометить
+    # закрытой, иначе в Афише висит «активное» мероприятие, которого уже нет.
+    # Вместо имени в ней встанет пометка об удалённой записи.
+    if activity.afisha_message_id is not None:
         await notification_service.edit_afisha_card(
             bot, activity.afisha_message_id, _afisha_text(activity, organizer)
         )
@@ -365,7 +368,7 @@ async def finish_activity(
     delivered = await scenario_service.dm(
         bot, session, activity.organizer_id, dm_key, title=escape(activity.title)
     )
-    if not delivered:
+    if delivered.is_problem:
         await error_service.report_issue(
             bot,
             source="Мероприятие: завершение/отмена",
@@ -377,7 +380,7 @@ async def finish_activity(
         demoted_delivered = await scenario_service.dm(
             bot, session, activity.organizer_id, "org_demoted"
         )
-        if not demoted_delivered:
+        if demoted_delivered.is_problem:
             await error_service.report_issue(
                 bot,
                 source="Мероприятие: снятие роли организатора",

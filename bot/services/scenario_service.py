@@ -12,6 +12,7 @@
 import logging
 import re
 from dataclasses import dataclass
+from enum import Enum
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
@@ -193,6 +194,30 @@ async def render(session: AsyncSession, key: str, **params) -> Content:
     return Content(text, content.file_id, content.file_type)
 
 
+class Delivery(Enum):
+    """Чем закончилась попытка написать человеку в личку.
+
+    Различать «не смогли отправить» и «отправлять некому» приходится вот
+    почему: удалить можно любую запись, и ссылки на удалённого человека при
+    этом обнуляются. Мероприятие остаётся, его организатор — нет. Когда такое
+    мероприятие закрывают, писать некому, и это нормальный ход событий, а не
+    сбой. Пока оба случая давали одно и то же «нет», владельцу прилетала
+    карточка ошибки «уведомление не доставилось» про несуществующего человека.
+    """
+
+    SENT = "sent"
+    FAILED = "failed"  # Telegram не дал: человек не запускал бота или заблокировал
+    NO_ADDRESSEE = "no_addressee"  # адресата нет в базе, ссылка пустая
+
+    @property
+    def is_problem(self) -> bool:
+        """Стоит ли беспокоить владельца карточкой ошибки."""
+        return self is Delivery.FAILED
+
+    def __bool__(self) -> bool:
+        return self is Delivery.SENT
+
+
 async def dm(
     bot: Bot,
     session: AsyncSession,
@@ -202,8 +227,8 @@ async def dm(
     suffix: str = "",
     reply_markup: ReplyKeyboardMarkup | ReplyKeyboardRemove | None = None,
     **params,
-) -> bool:
-    """Сообщение сценария в ЛС. False — если Telegram не дал отправить.
+) -> Delivery:
+    """Сообщение сценария в ЛС. Что вернулось — см. Delivery.
 
     reply_markup нужен там, где решение админа меняет статус человека:
     нижнее меню в Telegram живёт, пока его явно не заменят новым сообщением,
@@ -212,12 +237,11 @@ async def dm(
     ставится на последнее отправленное сообщение — чтобы не мигала дважды.
 
     Адресата может не быть вовсе: автора заявки удалили из базы, и ссылка на
-    него опустела. Это не сбой отправки, но и не доставка — возвращаем False,
-    чтобы вызывающий отметил это в логах и не считал, что человек получил
-    сообщение.
+    него опустела. Это не сбой отправки — писать некому, поэтому такой случай
+    отделён от неудачи (NO_ADDRESSEE), и владельца им не тревожат.
     """
     if tg_id is None:
-        return False
+        return Delivery.NO_ADDRESSEE
     content = await render(session, key, **params)
     text = content.text + suffix
     try:
@@ -230,10 +254,10 @@ async def dm(
             else:
                 await send(tg_id, content.file_id)
                 await bot.send_message(tg_id, text, reply_markup=reply_markup)
-        return True
+        return Delivery.SENT
     except TelegramAPIError as e:
         logger.warning("Failed to DM user %s (scenario %s): %s", tg_id, key, e)
-        return False
+        return Delivery.FAILED
 
 
 async def reply(

@@ -212,7 +212,7 @@ async def approve(
         suffix=invite_line,
         reply_markup=main_menu_kb(user),
     )
-    if not delivered:
+    if delivered.is_problem:
         notes.append(texts.NOTE_DM_FAILED)
         await error_service.report_issue(
             bot,
@@ -273,7 +273,7 @@ async def reject(
     delivered = await scenario_service.dm(
         bot, session, request.tg_id, "reg_rejected", suffix=suffix
     )
-    if not delivered:
+    if delivered.is_problem:
         await error_service.report_issue(
             bot,
             source="Регистрация: отказ",
