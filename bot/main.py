@@ -46,6 +46,13 @@ async def resolve_group_chat_id(bot: Bot) -> None:
 
 
 async def main() -> None:
+    # Контуров два — боевой и тестовый (docs/TEST_ENV.md). В логах они выглядят
+    # одинаково, поэтому контур называется первой же строкой.
+    if settings.is_test:
+        logging.warning("ТЕСТОВЫЙ КОНТУР: отдельный бот, своя база, тестовые чаты")
+    else:
+        logging.info("Боевой контур")
+
     bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     storage = RedisStorage.from_url(settings.redis_url)
     dp = Dispatcher(storage=storage)

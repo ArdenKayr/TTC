@@ -23,7 +23,7 @@ Python 3.12 · Aiogram 3 · PostgreSQL 16 (+pg_trgm) · SQLAlchemy 2 async + Ale
 | Топик | Назначение | env-переменная (thread id) |
 |---|---|---|
 | Заявки | Карточки регистраций/активностей/сборов с кнопками | `ADMIN_TOPIC_APPLICATIONS_ID` |
-| Репорты | `/report` от пользователей и вызовы `@admin` из группы | `ADMIN_TOPIC_REPORTS_ID` |
+| Репорты | Репорты от пользователей (кнопка «🐞 Репорт») и вызовы `@admin` из группы | `ADMIN_TOPIC_REPORTS_ID` |
 
 Настройка бота: создать у [@BotFather](https://t.me/BotFather), **отключить Group Privacy** (Bot Settings → Group Privacy → Disable), добавить админом в супергруппу (права: приглашение ссылками, удаление сообщений, бан) и участником в чат админов. `message_thread_id` топика — число из его ссылки: `t.me/<группа>/<thread_id>/<message_id>`.
 
@@ -62,4 +62,14 @@ python -m venv .venv
 - `bot/services/` — бизнес-логика (тайм-аут регистрации, роли, инвайт-ссылки, аудит)
 - `bot/db/models/`, `bot/db/repositories/` — схема и запросы
 - `migrations/` — Alembic
-- `scripts/` — bootstrap первого админа, сид вузов
+- `scripts/` — bootstrap первого админа, сид вузов, выкатка на сервер (`deploy.py`), сборка статей для Telegraph (`build_user_guide.py`, `build_release.py`)
+
+## Обновления
+
+Проект в бете, обновления выпускаются по регламенту — [docs/RELEASE_RULES.md](docs/RELEASE_RULES.md). Коротко: у обновления есть номер и название (`docs/releases/NN-название.md`), из него собираются две статьи для Telegraph (участникам и админам), документация и карта сценариев правятся тем же изменением, и до боя обновление проходит тестовый контур — второго бота со своей базой и своими чатами ([docs/TEST_ENV.md](docs/TEST_ENV.md)).
+
+```bash
+python -m scripts.build_release   # страницы обновления      (обновление.bat)
+python -m scripts.deploy test     # выкатить в тестовый контур (тест-выкатить.bat)
+python -m scripts.deploy prod     # выкатить на бой            (бой-выкатить.bat)
+```
