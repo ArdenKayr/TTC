@@ -25,12 +25,111 @@ from bot.keyboards.activity_kb import (
 )
 from bot.keyboards.common_kb import main_menu_kb
 from bot.routers.common import send_start_screen
-from bot.services import activity_service, notification_service, scenario_service
+from bot.services import (
+    activity_service,
+    form_nav,
+    notification_service,
+    scenario_service,
+)
 from bot.states.activity_states import ActivityForm, VoteForm
 
 router = Router(name="activities")
 
 _ANY_FORM = StateFilter(ActivityForm, VoteForm)
+
+
+# --- Вопросы шагов ---
+#
+# Вопрос отделён от перехода: он нужен и когда человек идёт вперёд, и когда
+# возвращается кнопкой «⬅️ Шаг назад». Состояние тут не трогается — этим
+# занимается form_nav.
+
+
+async def _ask_act_title(message: Message) -> None:
+    await message.answer(
+        texts.ACT_START.format(min=limits.ACT_TITLE_MIN, max=limits.ACT_TITLE_MAX),
+        reply_markup=form_cancel_kb(),
+    )
+
+
+async def _ask_act_description(message: Message) -> None:
+    await message.answer(
+        texts.ACT_DESC_PROMPT.format(min=limits.ACT_DESC_MIN, max=limits.ACT_DESC_MAX),
+        reply_markup=form_cancel_kb(),
+    )
+
+
+async def _ask_act_needs(message: Message) -> None:
+    await message.answer(
+        texts.ACT_NEEDS_PROMPT.format(min=limits.ACT_NEEDS_MIN, max=limits.ACT_NEEDS_MAX),
+        reply_markup=form_cancel_kb(),
+    )
+
+
+async def _ask_act_organizers(message: Message) -> None:
+    await message.answer(
+        texts.ACT_ORGANIZERS_PROMPT.format(max=limits.ACT_ORGANIZERS_MAX, skip=texts.BTN.SKIP),
+        reply_markup=skip_step_kb(),
+    )
+
+
+async def _ask_act_plan(message: Message) -> None:
+    await message.answer(
+        texts.ACT_PLAN_PROMPT.format(skip=texts.BTN.SKIP), reply_markup=skip_step_kb()
+    )
+
+
+async def _ask_act_chat(message: Message) -> None:
+    await message.answer(
+        texts.ACT_CHAT_PROMPT.format(skip=texts.BTN.SKIP), reply_markup=skip_step_kb()
+    )
+
+
+async def _ask_act_comment(message: Message) -> None:
+    await message.answer(
+        texts.ACT_COMMENT_PROMPT.format(max=limits.ACT_COMMENT_MAX, skip=texts.BTN.SKIP),
+        reply_markup=skip_step_kb(),
+    )
+
+
+async def _ask_vote_question(message: Message) -> None:
+    await message.answer(
+        texts.VOTE_START.format(min=limits.VOTE_QUESTION_MIN, max=limits.VOTE_QUESTION_MAX),
+        reply_markup=form_cancel_kb(),
+    )
+
+
+async def _ask_vote_options(message: Message) -> None:
+    await message.answer(
+        texts.VOTE_OPTIONS_PROMPT.format(
+            min=limits.VOTE_OPTIONS_MIN,
+            max=limits.VOTE_OPTIONS_MAX,
+            opt_max=limits.VOTE_OPTION_MAX,
+        ),
+        reply_markup=form_cancel_kb(),
+    )
+
+
+async def _ask_vote_anonymity(message: Message) -> None:
+    await message.answer(texts.VOTE_ANON_PROMPT, reply_markup=vote_anonymity_kb())
+
+
+# Какой вопрос задать, вернувшись на шаг. Через lambda — сводки объявлены ниже
+# по файлу, а имена в них разрешаются в момент вызова.
+_ASK_BY_NAME = {
+    ActivityForm.title.state: lambda m, st: _ask_act_title(m),
+    ActivityForm.description.state: lambda m, st: _ask_act_description(m),
+    ActivityForm.needs.state: lambda m, st: _ask_act_needs(m),
+    ActivityForm.organizers.state: lambda m, st: _ask_act_organizers(m),
+    ActivityForm.plan_url.state: lambda m, st: _ask_act_plan(m),
+    ActivityForm.chat_url.state: lambda m, st: _ask_act_chat(m),
+    ActivityForm.admin_comment.state: lambda m, st: _ask_act_comment(m),
+    ActivityForm.confirm.state: lambda m, st: _act_show_confirm(m, st),
+    VoteForm.question.state: lambda m, st: _ask_vote_question(m),
+    VoteForm.options.state: lambda m, st: _ask_vote_options(m),
+    VoteForm.anonymity.state: lambda m, st: _ask_vote_anonymity(m),
+    VoteForm.confirm.state: lambda m, st: _vote_show_confirm(m, st),
+}
 
 
 # --- Вход (кнопки главного меню) ---
@@ -45,11 +144,8 @@ async def start_activity_form(
     if db_user is None:
         await message.answer(texts.ACT_NOT_REGISTERED)
         return
-    await state.set_state(ActivityForm.title)
-    await message.answer(
-        texts.ACT_START.format(min=limits.ACT_TITLE_MIN, max=limits.ACT_TITLE_MAX),
-        reply_markup=form_cancel_kb(),
-    )
+    await form_nav.restart(state, ActivityForm.title)
+    await _ask_act_title(message)
 
 
 @router.message(
@@ -59,11 +155,8 @@ async def start_vote_form(message: Message, state: FSMContext, db_user: User | N
     if db_user is None:
         await message.answer(texts.ACT_NOT_REGISTERED)
         return
-    await state.set_state(VoteForm.question)
-    await message.answer(
-        texts.VOTE_START.format(min=limits.VOTE_QUESTION_MIN, max=limits.VOTE_QUESTION_MAX),
-        reply_markup=form_cancel_kb(),
-    )
+    await form_nav.restart(state, VoteForm.question)
+    await _ask_vote_question(message)
 
 
 # --- Выходы: «🚫 Отмена» и спасательный /start ---
@@ -73,6 +166,21 @@ async def start_vote_form(message: Message, state: FSMContext, db_user: User | N
 async def form_cancel(message: Message, state: FSMContext, db_user: User | None) -> None:
     await state.clear()
     await message.answer(texts.ACT_CANCELLED, reply_markup=main_menu_kb(db_user))
+
+
+@router.message(_ANY_FORM, F.text == texts.BTN.FORM_BACK)
+async def form_step_back(message: Message, state: FSMContext) -> None:
+    """Возврат на предыдущий вопрос заявки.
+
+    Стоит выше обработчиков шагов: иначе «⬅️ Шаг назад» уехал бы в заявку
+    названием мероприятия или вариантом ответа.
+    """
+    previous = await form_nav.back(state)
+    if previous is None:
+        await message.answer(texts.FORM_BACK_AT_START.format(cancel=texts.BTN.REG_CANCEL))
+        return
+    await message.answer(texts.FORM_BACK_DONE)
+    await _ASK_BY_NAME[previous](message, state)
 
 
 @router.message(_ANY_FORM, CommandStart())
@@ -95,10 +203,8 @@ async def act_title(message: Message, state: FSMContext) -> None:
         )
         return
     await state.update_data(title=title)
-    await state.set_state(ActivityForm.description)
-    await message.answer(
-        texts.ACT_DESC_PROMPT.format(min=limits.ACT_DESC_MIN, max=limits.ACT_DESC_MAX)
-    )
+    await form_nav.goto(state, ActivityForm.description)
+    await _ask_act_description(message)
 
 
 @router.message(ActivityForm.description, F.text, ~F.text.startswith("/"))
@@ -110,10 +216,8 @@ async def act_description(message: Message, state: FSMContext) -> None:
         )
         return
     await state.update_data(description=description)
-    await state.set_state(ActivityForm.needs)
-    await message.answer(
-        texts.ACT_NEEDS_PROMPT.format(min=limits.ACT_NEEDS_MIN, max=limits.ACT_NEEDS_MAX)
-    )
+    await form_nav.goto(state, ActivityForm.needs)
+    await _ask_act_needs(message)
 
 
 @router.message(ActivityForm.needs, F.text, ~F.text.startswith("/"))
@@ -130,11 +234,8 @@ async def act_needs(message: Message, state: FSMContext) -> None:
         )
         return
     await state.update_data(needs_text=needs)
-    await state.set_state(ActivityForm.organizers)
-    await message.answer(
-        texts.ACT_ORGANIZERS_PROMPT.format(max=limits.ACT_ORGANIZERS_MAX, skip=texts.BTN.SKIP),
-        reply_markup=skip_step_kb(),
-    )
+    await form_nav.goto(state, ActivityForm.organizers)
+    await _ask_act_organizers(message)
 
 
 @router.message(ActivityForm.organizers, F.text, ~F.text.startswith("/"))
@@ -151,8 +252,8 @@ async def act_organizers(message: Message, state: FSMContext) -> None:
         return
     else:
         await state.update_data(organizers_text=raw)
-    await state.set_state(ActivityForm.plan_url)
-    await message.answer(texts.ACT_PLAN_PROMPT.format(skip=texts.BTN.SKIP))
+    await form_nav.goto(state, ActivityForm.plan_url)
+    await _ask_act_plan(message)
 
 
 async def _act_take_url(message: Message, state: FSMContext, field: str) -> bool:
@@ -174,23 +275,20 @@ async def _act_take_url(message: Message, state: FSMContext, field: str) -> bool
 async def act_plan_url(message: Message, state: FSMContext) -> None:
     if not await _act_take_url(message, state, "plan_url"):
         return
-    await state.set_state(ActivityForm.chat_url)
-    await message.answer(texts.ACT_CHAT_PROMPT.format(skip=texts.BTN.SKIP))
+    await form_nav.goto(state, ActivityForm.chat_url)
+    await _ask_act_chat(message)
 
 
 @router.message(ActivityForm.chat_url, F.text, ~F.text.startswith("/"))
 async def act_chat_url(message: Message, state: FSMContext) -> None:
     if not await _act_take_url(message, state, "chat_url"):
         return
-    await state.set_state(ActivityForm.admin_comment)
-    await message.answer(
-        texts.ACT_COMMENT_PROMPT.format(max=limits.ACT_COMMENT_MAX, skip=texts.BTN.SKIP)
-    )
+    await form_nav.goto(state, ActivityForm.admin_comment)
+    await _ask_act_comment(message)
 
 
 async def _act_show_confirm(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
-    await state.set_state(ActivityForm.confirm)
     await message.answer(
         texts.ACT_CONFIRM.format(
             title=escape(data["title"]),
@@ -219,6 +317,7 @@ async def act_admin_comment(message: Message, state: FSMContext) -> None:
         return
     else:
         await state.update_data(admin_comment=raw)
+    await form_nav.goto(state, ActivityForm.confirm)
     await _act_show_confirm(message, state)
 
 
@@ -250,11 +349,8 @@ async def act_submit(
 
 @router.message(ActivityForm.confirm, F.text == texts.BTN.REG_RESTART)
 async def act_restart(message: Message, state: FSMContext) -> None:
-    await state.set_state(ActivityForm.title)
-    await message.answer(
-        texts.ACT_START.format(min=limits.ACT_TITLE_MIN, max=limits.ACT_TITLE_MAX),
-        reply_markup=form_cancel_kb(),
-    )
+    await form_nav.restart(state, ActivityForm.title)
+    await _ask_act_title(message)
 
 
 @router.message(ActivityForm.confirm, F.text, ~F.text.startswith("/"))
@@ -276,14 +372,8 @@ async def vote_question(message: Message, state: FSMContext) -> None:
         )
         return
     await state.update_data(question=question)
-    await state.set_state(VoteForm.options)
-    await message.answer(
-        texts.VOTE_OPTIONS_PROMPT.format(
-            min=limits.VOTE_OPTIONS_MIN,
-            max=limits.VOTE_OPTIONS_MAX,
-            opt_max=limits.VOTE_OPTION_MAX,
-        )
-    )
+    await form_nav.goto(state, VoteForm.options)
+    await _ask_vote_options(message)
 
 
 async def _vote_show_confirm(message: Message, state: FSMContext) -> None:
@@ -291,7 +381,6 @@ async def _vote_show_confirm(message: Message, state: FSMContext) -> None:
     rows = "\n".join(
         texts.VOTE_OPTION_ROW.format(option=escape(option)) for option in data["options"]
     )
-    await state.set_state(VoteForm.confirm)
     await message.answer(
         texts.VOTE_CONFIRM.format(
             question=escape(data["question"]),
@@ -317,8 +406,8 @@ async def vote_options(message: Message, state: FSMContext) -> None:
         )
         return
     await state.update_data(options=options)
-    await state.set_state(VoteForm.anonymity)
-    await message.answer(texts.VOTE_ANON_PROMPT, reply_markup=vote_anonymity_kb())
+    await form_nav.goto(state, VoteForm.anonymity)
+    await _ask_vote_anonymity(message)
 
 
 @router.message(
@@ -326,6 +415,7 @@ async def vote_options(message: Message, state: FSMContext) -> None:
 )
 async def vote_anonymity(message: Message, state: FSMContext) -> None:
     await state.update_data(is_anonymous=message.text == texts.BTN.VOTE_ANON_YES)
+    await form_nav.goto(state, VoteForm.confirm)
     await _vote_show_confirm(message, state)
 
 
@@ -360,11 +450,8 @@ async def vote_submit(
 
 @router.message(VoteForm.confirm, F.text == texts.BTN.REG_RESTART)
 async def vote_restart(message: Message, state: FSMContext) -> None:
-    await state.set_state(VoteForm.question)
-    await message.answer(
-        texts.VOTE_START.format(min=limits.VOTE_QUESTION_MIN, max=limits.VOTE_QUESTION_MAX),
-        reply_markup=form_cancel_kb(),
-    )
+    await form_nav.restart(state, VoteForm.question)
+    await _ask_vote_question(message)
 
 
 @router.message(VoteForm.confirm, F.text, ~F.text.startswith("/"))

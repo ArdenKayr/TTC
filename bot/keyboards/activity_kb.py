@@ -8,7 +8,12 @@ from aiogram.types import (
 from bot import texts
 from bot.keyboards.callback_data import ActLifecycleCB, ActReviewCB, VoteReviewCB
 
-_CANCEL_ROW = [KeyboardButton(text=texts.BTN.REG_CANCEL)]
+# Нижний ряд любого шага анкеты: вернуться на вопрос назад или выйти совсем.
+# Ряд общий, поэтому кнопка «Шаг назад» появляется сразу на всех шагах.
+_CANCEL_ROW = [
+    KeyboardButton(text=texts.BTN.FORM_BACK),
+    KeyboardButton(text=texts.BTN.REG_CANCEL),
+]
 
 
 def _reply(rows: list[list[KeyboardButton]]) -> ReplyKeyboardMarkup:
@@ -41,7 +46,8 @@ def confirm_kb() -> ReplyKeyboardMarkup:
     return _reply(
         [
             [KeyboardButton(text=texts.BTN.REG_SUBMIT)],
-            [KeyboardButton(text=texts.BTN.REG_RESTART), KeyboardButton(text=texts.BTN.REG_CANCEL)],
+            [KeyboardButton(text=texts.BTN.REG_RESTART)],
+            _CANCEL_ROW,
         ]
     )
 

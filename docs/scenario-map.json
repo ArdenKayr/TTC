@@ -930,6 +930,25 @@
           ]
         },
         {
+          "id": "reg_step_back",
+          "trigger_kind": "reply_button",
+          "trigger_ref": "BTN.FORM_BACK",
+          "where": "dm",
+          "roles": [
+            "guest"
+          ],
+          "handler": "bot/routers/registration.py:form_step_back",
+          "does": "Возвращает на предыдущий вопрос анкеты по тому пути, которым человек сюда пришёл: из «удобно ли искать» — к списку вузов, из группы — к вузу либо к рассказу о себе. Ответы, данные раньше, сохраняются; на первом вопросе возвращаться некуда, и бот об этом говорит.",
+          "shows": "«Вернулись на шаг назад» и следом сам предыдущий вопрос с его кнопками.",
+          "next": [
+            "reg_nick",
+            "reg_uni_search",
+            "reg_about",
+            "reg_group",
+            "reg_birth"
+          ]
+        },
+        {
           "id": "reg_start_over",
           "trigger_kind": "command",
           "trigger_text": "/start",
@@ -1733,6 +1752,28 @@
             "mem_act_start",
             "mem_vote_start",
             "mem_profile_open"
+          ]
+        },
+        {
+          "id": "mem_form_back",
+          "trigger_kind": "reply_button",
+          "trigger_ref": "BTN.FORM_BACK",
+          "where": "dm",
+          "roles": [
+            "user",
+            "organizer",
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/activities.py:form_step_back",
+          "does": "Возвращает на предыдущий вопрос заявки на мероприятие или голосование. Всё, что человек ввёл раньше, остаётся; на первом вопросе возвращаться некуда.",
+          "shows": "«Вернулись на шаг назад» и следом сам предыдущий вопрос с его кнопками.",
+          "next": [
+            "mem_act_title",
+            "mem_act_desc",
+            "mem_act_needs",
+            "mem_vote_question"
           ]
         },
         {
