@@ -11,7 +11,7 @@ from bot.enums import PermissionModule
 from bot.filters.role_filter import HasPerm
 from bot.keyboards.admin_kb import content_edit_kb, content_slots_kb
 from bot.keyboards.callback_data import ContentActionCB, ContentSlotCB
-from bot.services import content_service
+from bot.services import content_service, input_guard
 from bot.states.content_states import ContentEditForm
 
 router = Router(name="admin_content")
@@ -130,3 +130,18 @@ async def msg_new_text(
     )
     await state.clear()
     await _saved(message, session, data["slot"])
+
+
+@router.message(ContentEditForm.waiting)
+async def msg_unexpected(message: Message, state: FSMContext) -> None:
+    """Ответ на то, что редактор принять не может: стикер, голосовое, кружок.
+
+    Стоит последним в роутере: текст, фото и файл разбирают обработчики выше.
+    """
+    data = await state.get_data()
+    slot = content_service.SLOTS.get(data.get("slot"))
+    await message.answer(input_guard.form_explain(message, files_ok=True))
+    if slot is not None:
+        await message.answer(
+            texts.CONTENT_PROMPT.format(title=slot.title), reply_markup=content_edit_kb()
+        )

@@ -36,7 +36,7 @@ from bot.keyboards.callback_data import (
 )
 from bot.keyboards.common_kb import MENU_BUTTON_TEXTS as _MENU_BUTTONS
 from bot.routers.common import send_start_screen
-from bot.services import crud_service
+from bot.services import crud_service, input_guard
 from bot.states.content_states import CrudForm
 
 router = Router(name="crud_admin")
@@ -528,3 +528,14 @@ async def cb_cancel(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
     await callback.message.edit_text(texts.CRUD_CANCELLED)
     await callback.answer()
+
+
+@router.message(StateFilter(CrudForm))
+async def crud_unexpected(message: Message) -> None:
+    """Ответ на то, что шаг принять не может: фото, стикер, голосовое, команда.
+
+    Стоит последним в роутере — сюда попадает только то, что не взял ни один
+    обработчик выше.
+    """
+    await message.answer(input_guard.form_explain(message))
+    await message.answer(texts.CRUD_INPUT_RETRY)

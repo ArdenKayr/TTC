@@ -30,7 +30,7 @@ from bot.filters.role_filter import IsOwner
 from bot.keyboards.callback_data import LogCB, UpdatePostCB
 from bot.keyboards.common_kb import MENU_BUTTON_TEXTS as _MENU_BUTTONS
 from bot.routers.common import send_start_screen
-from bot.services import content_service, update_service
+from bot.services import content_service, input_guard, update_service
 from bot.services.error_service import format_person
 from bot.states.content_states import UpdatePostForm
 
@@ -367,3 +367,22 @@ async def cb_update_action(
         data.get("file_type"),
     )
     await callback.message.answer(texts.UPD_DONE.format(delivered=delivered, total=total))
+
+
+@router.message(StateFilter(UpdatePostForm))
+async def update_unexpected(message: Message, state: FSMContext) -> None:
+    """Ответ на то, что шаг принять не может.
+
+    Стоит последним в роутере. Отдельный случай — шаг подтверждения: там бот
+    вообще не читает сообщения, решение принимается кнопками под превью, и
+    молчание в ответ на набранный текст выглядело как потерянная рассылка.
+    """
+    if await state.get_state() == UpdatePostForm.confirm.state:
+        await message.answer(
+            texts.UPD_CONFIRM_RETRY.format(
+                send=texts.BTN.UPD_SEND, cancel=texts.BTN.CONTENT_CANCEL
+            )
+        )
+        return
+    await message.answer(input_guard.form_explain(message, files_ok=True))
+    await message.answer(texts.UPD_PROMPT)

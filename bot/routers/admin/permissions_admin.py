@@ -39,7 +39,7 @@ from bot.keyboards.perm_kb import (
     perm_home_kb,
     perm_person_kb,
 )
-from bot.services import permission_service
+from bot.services import input_guard, permission_service
 from bot.states.perm_states import PermAdminForm
 
 router = Router(name="admin_permissions")
@@ -279,3 +279,21 @@ async def cb_cancel(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
     await callback.message.edit_text(texts.PERM_CANCELLED)
     await callback.answer()
+
+
+# --- Последний рубеж формы ---
+
+# Чем переспросить шаг, если пришло не то.
+_FORM_RETRY = {
+    PermAdminForm.group_name.state: texts.PERM_GROUP_CREATE_PROMPT,
+    PermAdminForm.person_lookup.state: texts.PERM_PERSON_PROMPT,
+}
+
+
+@router.message(StateFilter(PermAdminForm))
+async def form_unexpected(message: Message, state: FSMContext) -> None:
+    """Ответ на всё, что шаг принять не может: фото, стикер, голосовое, команда."""
+    await message.answer(input_guard.form_explain(message))
+    prompt = _FORM_RETRY.get(await state.get_state())
+    if prompt is not None:
+        await message.answer(prompt, reply_markup=perm_cancel_kb())

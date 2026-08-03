@@ -31,6 +31,7 @@ from bot.keyboards.registration_kb import (
 from bot.routers.common import send_start_screen
 from bot.services import (
     form_nav,
+    input_guard,
     registration_service,
     scenario_service,
     university_service,
@@ -612,3 +613,23 @@ async def form_submit(message: Message, session: AsyncSession, state: FSMContext
 @router.message(RegistrationForm.confirm, F.text, ~F.text.startswith("/"))
 async def form_confirm_other(message: Message) -> None:
     await message.answer(texts.REG_USE_BUTTONS)
+
+
+# --- Последний рубеж анкеты ---
+
+
+@router.message(StateFilter(RegistrationForm))
+async def form_unexpected(
+    message: Message, session: AsyncSession, state: FSMContext
+) -> None:
+    """Всё, что не взял ни один шаг: фото, стикер, голосовое, файл, команда.
+
+    Обязан стоять последним в роутере — иначе перехватил бы сами шаги.
+    Раньше такое сообщение проваливалось в пустоту, и анкета выглядела
+    зависшей: человек не знал, ждать ответа или начинать заново. Теперь бот
+    объясняет, что не подошло, и повторяет вопрос, на котором человек стоит.
+    """
+    await message.answer(input_guard.form_explain(message))
+    ask = _ASK_BY_NAME.get(await state.get_state())
+    if ask is not None:
+        await ask(message, state, session)

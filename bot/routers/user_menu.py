@@ -27,6 +27,7 @@ from bot.keyboards.common_kb import (
 from bot.routers.common import send_start_screen
 from bot.services import (
     content_service,
+    input_guard,
     notification_service,
     permission_service,
     scenario_service,
@@ -138,6 +139,21 @@ async def report_text(
         ),
     )
     await scenario_service.reply(message, session, "report_sent", main_menu_kb(db_user))
+
+
+@router.message(ReportForm.text)
+async def report_unexpected(message: Message) -> None:
+    """Репорт: ответ на всё, что шагом не принимается.
+
+    Скриншот к репорту приложить хочется в первую очередь, поэтому молчание
+    здесь встречали чаще всего. Пока шаг принимает только текст — бот прямо
+    говорит об этом и повторяет вопрос.
+    """
+    await message.answer(input_guard.form_explain(message))
+    await message.answer(
+        texts.REPORT_PROMPT.format(min=limits.REPORT_MIN, max=limits.REPORT_MAX),
+        reply_markup=form_cancel_kb(),
+    )
 
 
 # --- Режим «Админство» (только меню, команды работают всегда) ---

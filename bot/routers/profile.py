@@ -20,7 +20,7 @@ from bot.keyboards.activity_kb import form_cancel_kb
 from bot.keyboards.callback_data import ProfileDeleteCB, ProfileEditCB
 from bot.keyboards.common_kb import main_menu_kb
 from bot.routers.common import send_start_screen
-from bot.services import profile_service, scenario_service
+from bot.services import input_guard, profile_service, scenario_service
 from bot.states.profile_states import ProfileForm
 
 router = Router(name="profile")
@@ -85,6 +85,9 @@ _EDIT_PROMPTS = {
         texts.PROFILE_EDIT_ABOUT_PROMPT.format(min=limits.ABOUT_MIN, max=limits.ABOUT_MAX),
     ),
 }
+# Тот же вопрос, но по состоянию: нужен, чтобы переспросить шаг, когда пришло
+# не то (см. edit_unexpected в конце файла).
+_PROMPT_BY_STATE = {step.state: prompt for step, prompt in _EDIT_PROMPTS.values()}
 
 
 @router.callback_query(ProfileEditCB.filter())
@@ -182,6 +185,19 @@ async def edit_about(
         return
     db_user.about_text = about
     await _saved(message, session, state, db_user, "about_text")
+
+
+@router.message(StateFilter(ProfileForm))
+async def edit_unexpected(message: Message, state: FSMContext) -> None:
+    """Правка профиля: ответ на всё, что шаг принять не может.
+
+    Стоит последним среди обработчиков сообщений роутера — сюда попадает только
+    то, что не взял ни один шаг выше (фото, стикер, голосовое, команда).
+    """
+    await message.answer(input_guard.form_explain(message))
+    prompt = _PROMPT_BY_STATE.get(await state.get_state())
+    if prompt is not None:
+        await message.answer(prompt, reply_markup=form_cancel_kb())
 
 
 # --- Удаление аккаунта ---

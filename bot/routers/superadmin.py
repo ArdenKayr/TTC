@@ -37,7 +37,7 @@ from bot.keyboards.callback_data import SuperUserCB
 from bot.keyboards.common_kb import MENU_BUTTON_TEXTS, admin_panel_kb
 from bot.routers.admin.permissions_admin import _person_view
 from bot.routers.common import send_start_screen
-from bot.services import permission_service, role_service, scenario_service
+from bot.services import input_guard, permission_service, role_service, scenario_service
 from bot.states.superadmin_states import SuperadminForm
 
 router = Router(name="superadmin")
@@ -311,3 +311,29 @@ async def ban_with_reason(
     # Карточку показываем заново: теперь в ней «Разбанить» вместо «Забанить».
     text, kb = _user_card(target, db_user)
     await message.answer(text, reply_markup=kb)
+
+
+# --- Последний рубеж формы ---
+
+# Чем переспросить шаг, если пришло не то: текст вопроса и кнопки самого шага.
+_FORM_RETRY = {
+    SuperadminForm.user_ref.state: (texts.SUPER_USER_PROMPT, form_cancel_kb),
+    SuperadminForm.ban_reason.state: (
+        texts.BAN_REASON_RETRY.format(skip=texts.BTN.BAN_NO_REASON),
+        _ban_reason_kb,
+    ),
+}
+
+
+@router.message(StateFilter(SuperadminForm))
+async def form_unexpected(message: Message, state: FSMContext) -> None:
+    """Ответ на всё, что шаг принять не может: фото, стикер, голосовое, команда.
+
+    Стоит последним в роутере — сюда попадает только то, что не взял ни один
+    обработчик выше.
+    """
+    await message.answer(input_guard.form_explain(message))
+    retry = _FORM_RETRY.get(await state.get_state())
+    if retry is not None:
+        prompt, keyboard = retry
+        await message.answer(prompt, reply_markup=keyboard())

@@ -456,6 +456,45 @@
             "users",
             "content_blocks"
           ]
+        },
+        {
+          "id": "dm_unknown_input",
+          "trigger_kind": "message",
+          "trigger_text": "любое сообщение в личке, которое бот не разобрал",
+          "where": "dm",
+          "roles": [
+            "any"
+          ],
+          "handler": "bot/routers/common.py:unknown_input",
+          "does": "Последний обработчик бота: срабатывает, когда сообщение не подошло ни одному экрану и ни одной анкете. Различает, что пришло — текст, старая команда или вложение, — и возвращает нижнее меню по роли человека. Служебные сообщения (закреп, смена фото) пропускает молча.",
+          "shows": "«Бот работает — просто он не читает сообщения, всё делается кнопками. Выберите действие в меню внизу» и само меню. На команду — отдельная фраза, что команд у бота нет; на стикер или голосовое — что именно пришло.",
+          "next": [
+            "menu_guest",
+            "menu_user",
+            "menu_super"
+          ],
+          "db_reads": [
+            "users"
+          ]
+        },
+        {
+          "id": "report_unexpected",
+          "trigger_kind": "message",
+          "trigger_text": "скриншот, голосовое или файл вместо текста репорта",
+          "where": "dm",
+          "handler": "bot/routers/user_menu.py:report_unexpected",
+          "does": "Отвечает на то, что шаг репорта принять не может — скриншот, голосовое, стикер, команду, — и заново задаёт вопрос.",
+          "shows": "«Бот работает — просто на этом шаге он принимает только текст, а вы прислали фото. Ответ не записан» и следом снова просьба описать проблему одним сообщением.",
+          "next": [
+            "report_text"
+          ],
+          "roles": [
+            "user",
+            "organizer",
+            "admin",
+            "superadmin",
+            "owner"
+          ]
         }
       ]
     },
@@ -965,6 +1004,25 @@
           "db_reads": [
             "content_blocks",
             "users"
+          ]
+        },
+        {
+          "id": "reg_input_unexpected",
+          "trigger_kind": "message",
+          "trigger_text": "фото, стикер, голосовое или команда на любом шаге анкеты",
+          "where": "dm",
+          "handler": "bot/routers/registration.py:form_unexpected",
+          "does": "Ловит всё, что не подошло ни одному шагу анкеты, и повторяет вопрос того шага, на котором человек стоит. Ответы, данные раньше, сохраняются.",
+          "shows": "Строку о том, что бот работает и почему ответ не принят (нужен текст, а пришло фото; команд у бота нет), и следом сам вопрос с его кнопками.",
+          "next": [
+            "reg_nick",
+            "reg_uni_search",
+            "reg_about",
+            "reg_group",
+            "reg_birth"
+          ],
+          "roles": [
+            "guest"
           ]
         }
       ]
@@ -1800,6 +1858,50 @@
             "users",
             "content_blocks"
           ]
+        },
+        {
+          "id": "mem_form_unexpected",
+          "trigger_kind": "message",
+          "trigger_text": "фото, стикер, голосовое или команда на шаге заявки",
+          "where": "dm",
+          "handler": "bot/routers/activities.py:form_unexpected",
+          "does": "То же для заявок на мероприятие и голосование: объясняет, что прислано не то, и повторяет текущий вопрос, сохранив введённое.",
+          "shows": "Строку о том, что бот работает и что именно не принято, и следом сам вопрос с его кнопками.",
+          "next": [
+            "mem_act_title",
+            "mem_act_desc",
+            "mem_act_needs",
+            "mem_vote_question"
+          ],
+          "roles": [
+            "user",
+            "organizer",
+            "admin",
+            "superadmin",
+            "owner"
+          ]
+        },
+        {
+          "id": "mem_profile_unexpected",
+          "trigger_kind": "message",
+          "trigger_text": "фото, стикер или голосовое вместо нового значения поля",
+          "where": "dm",
+          "handler": "bot/routers/profile.py:edit_unexpected",
+          "does": "Отвечает, что правка профиля принимает только текст, и повторяет вопрос.",
+          "shows": "«Бот работает — просто на этом шаге он принимает только текст…» и следом тот же вопрос: новый ник, группа, дата рождения или рассказ о себе.",
+          "next": [
+            "mem_profile_nick_save",
+            "mem_profile_group_save",
+            "mem_profile_birth_save",
+            "mem_profile_about_save"
+          ],
+          "roles": [
+            "user",
+            "organizer",
+            "admin",
+            "superadmin",
+            "owner"
+          ]
         }
       ]
     },
@@ -2366,6 +2468,24 @@
           "handler": "bot/routers/admin/university_review.py:cb_alias_not_admin",
           "does": "Ловит нажатия на карточке предложения варианта от тех, у кого нет модуля «Вузы и варианты поиска».",
           "shows": "Всплывающее окно «⛔ Действие доступно только админам», карточка не меняется."
+        },
+        {
+          "id": "appl_edit_unexpected",
+          "trigger_kind": "message",
+          "trigger_text": "вложение вместо исправленного текста заявки",
+          "where": "admin_chat",
+          "handler": "bot/routers/admin/university_review.py:msg_edit_unexpected",
+          "does": "Отвечает админу, что исправление принимается только текстом, и повторяет, что именно прислать.",
+          "shows": "Строку «Бот работает…» и снова просьбу прислать исправленные данные.",
+          "next": [
+            "appl_uni_edit_msg",
+            "appl_alias_edit_msg"
+          ],
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ]
         }
       ]
     },
@@ -3042,6 +3162,24 @@
           ],
           "notifies": [
             "владельцу в ЛС"
+          ]
+        },
+        {
+          "id": "mod_users_unexpected",
+          "trigger_kind": "message",
+          "trigger_text": "вложение или команда вместо @ника, id или причины бана",
+          "where": "dm",
+          "handler": "bot/routers/superadmin.py:form_unexpected",
+          "does": "Раздел «Пользователи»: отвечает на то, что шаг принять не может, и повторяет вопрос — поиск человека или причину бана с её кнопками.",
+          "shows": "Строку «Бот работает…» и следом сам вопрос.",
+          "next": [
+            "perm_usr_lookup",
+            "mod_ban"
+          ],
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
           ]
         }
       ]
@@ -3979,6 +4117,41 @@
           "handler": "bot/routers/admin/crud_admin.py:crud_start_over",
           "does": "Прерывает правку или создание записи и возвращает человека на стартовый экран бота.",
           "shows": "Обычный стартовый экран с приветствием и главным меню."
+        },
+        {
+          "id": "perm_input_unexpected",
+          "trigger_kind": "message",
+          "trigger_text": "вложение или команда вместо названия группы прав или @ника",
+          "where": "dm",
+          "handler": "bot/routers/admin/permissions_admin.py:form_unexpected",
+          "does": "Отвечает, что шаг принимает только текст, и повторяет вопрос.",
+          "shows": "Строку «Бот работает…» и снова вопрос с кнопкой отмены.",
+          "next": [
+            "perm_group_name_input",
+            "perm_person_lookup"
+          ],
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ]
+        },
+        {
+          "id": "perm_crud_unexpected",
+          "trigger_kind": "message",
+          "trigger_text": "вложение или команда вместо значения поля",
+          "where": "dm",
+          "handler": "bot/routers/admin/crud_admin.py:crud_unexpected",
+          "does": "Отвечает, что значение присылается текстом, и напоминает про отмену.",
+          "shows": "Строку «Бот работает…» и напоминание, что значение присылается текстом.",
+          "next": [
+            "perm_crud_value",
+            "perm_crud_create_value"
+          ],
+          "roles": [
+            "superadmin",
+            "owner"
+          ]
         }
       ]
     },
@@ -4654,6 +4827,63 @@
           ],
           "notifies": [
             "владельцу в ЛС"
+          ]
+        },
+        {
+          "id": "cont_unexpected",
+          "trigger_kind": "message",
+          "trigger_text": "стикер, голосовое или кружок в редакторе раздела",
+          "where": "dm",
+          "handler": "bot/routers/admin/content_admin.py:msg_unexpected",
+          "does": "Редактор разделов принимает текст, фото и файл — на всё остальное отвечает и повторяет, какой блок сейчас редактируется.",
+          "shows": "«Бот работает — просто здесь он принимает текст, фото или файл…» и снова просьбу прислать новое содержимое блока.",
+          "next": [
+            "cont_new_text",
+            "cont_new_photo",
+            "cont_new_doc"
+          ],
+          "roles": [
+            "user",
+            "organizer",
+            "admin",
+            "superadmin",
+            "owner"
+          ]
+        },
+        {
+          "id": "scen_unexpected",
+          "trigger_kind": "message",
+          "trigger_text": "стикер, голосовое или кружок в редакторе сообщения",
+          "where": "dm",
+          "handler": "bot/routers/admin/scenario_admin.py:msg_unexpected",
+          "does": "То же для редактора сообщений бота: отвечает и напоминает, что прислать.",
+          "shows": "Строку «Бот работает…» и снова просьбу прислать новый текст сообщения.",
+          "next": [
+            "scen_new_text",
+            "scen_new_photo",
+            "scen_new_doc"
+          ],
+          "roles": [
+            "superadmin",
+            "owner"
+          ]
+        },
+        {
+          "id": "upd_unexpected",
+          "trigger_kind": "message",
+          "trigger_text": "стикер или голосовое вместо текста обновления; сообщение на шаге «Рассылаем?»",
+          "where": "dm",
+          "handler": "bot/routers/admin/owner_panel.py:update_unexpected",
+          "does": "На шаге набора — отвечает, что принимается текст, фото или файл. На шаге подтверждения бот сообщения не читает и говорит, что решение принимается кнопками под превью.",
+          "shows": "Строку «Бот работает…» и снова просьбу прислать текст обновления — либо напоминание нажать «📢 Разослать всем» или «Отмена».",
+          "next": [
+            "upd_text",
+            "upd_photo",
+            "upd_doc",
+            "upd_send"
+          ],
+          "roles": [
+            "owner"
           ]
         }
       ]

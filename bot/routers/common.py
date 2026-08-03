@@ -9,7 +9,8 @@ from bot import texts
 from bot.db.models import User
 from bot.keyboards.callback_data import StartCB
 from bot.keyboards.common_kb import main_menu_kb
-from bot.services import content_service
+from bot.routers.group.admin_chat import SERVICE_MESSAGE
+from bot.services import content_service, input_guard
 
 router = Router(name="common")
 
@@ -50,5 +51,24 @@ async def cb_about(callback: CallbackQuery, session: AsyncSession) -> None:
     content = await content_service.get_content(session, "about")
     await content_service.send_content(callback.message, content)
     await callback.answer()
+
+
+# --- Последний рубеж всего бота ---
+
+
+@router.message(F.chat.type == ChatType.PRIVATE, ~SERVICE_MESSAGE)
+async def unknown_input(message: Message, db_user: User | None) -> None:
+    """Ответ на всё, что не разобрал никто выше: «привет», стикер, старая команда.
+
+    Роутер подключается последним, а этот обработчик — последний в нём, поэтому
+    сюда попадает только то, что не взял ни один обработчик бота. Раньше здесь
+    было молчание, и человек не мог отличить «бот меня не понял» от «бот упал».
+    Заодно возвращаем меню: обычно оно и потерялось.
+
+    Только личка: в группах бот отвечает не на всё подряд — там свой сторож.
+    """
+    await message.answer(
+        input_guard.menu_explain(message), reply_markup=main_menu_kb(db_user)
+    )
 
 

@@ -28,6 +28,7 @@ from bot.routers.common import send_start_screen
 from bot.services import (
     activity_service,
     form_nav,
+    input_guard,
     notification_service,
     scenario_service,
 )
@@ -457,3 +458,20 @@ async def vote_restart(message: Message, state: FSMContext) -> None:
 @router.message(VoteForm.confirm, F.text, ~F.text.startswith("/"))
 async def vote_confirm_other(message: Message, state: FSMContext) -> None:
     await _vote_show_confirm(message, state)
+
+
+# --- Последний рубеж обеих анкет ---
+
+
+@router.message(_ANY_FORM)
+async def form_unexpected(message: Message, state: FSMContext) -> None:
+    """Всё, что не взял ни один шаг: фото, стикер, голосовое, файл, команда.
+
+    Обязан стоять последним в роутере — иначе перехватил бы сами шаги. Молчание
+    в ответ на присланную картинку выглядело как зависшая заявка, поэтому бот
+    объясняет, что не подошло, и повторяет вопрос текущего шага.
+    """
+    await message.answer(input_guard.form_explain(message))
+    ask = _ASK_BY_NAME.get(await state.get_state())
+    if ask is not None:
+        await ask(message, state)

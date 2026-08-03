@@ -24,7 +24,7 @@ from bot.filters.role_filter import IsSuperadmin
 from bot.keyboards.callback_data import ScenActionCB, ScenGroupCB, ScenKeyCB
 from bot.keyboards.common_kb import MENU_BUTTON_TEXTS as _MENU_BUTTONS
 from bot.routers.common import send_start_screen
-from bot.services import content_service, scenario_service
+from bot.services import content_service, input_guard, scenario_service
 from bot.states.content_states import ScenarioEditForm
 
 router = Router(name="scenario_admin")
@@ -226,3 +226,15 @@ async def scen_new_text(
     await state.clear()
     await message.answer(texts.SCEN_SAVED)
     await _preview(message, session, data["key"])
+
+
+@router.message(ScenarioEditForm.waiting)
+async def msg_unexpected(message: Message) -> None:
+    """Ответ на то, что редактор сценария принять не может: стикер, голосовое.
+
+    Стоит последним в роутере: текст, фото и файл разбирают обработчики выше.
+    Карточку сценария не переспрашиваем — она уже висит выше в переписке,
+    хватает напоминания, что прислать.
+    """
+    await message.answer(input_guard.form_explain(message, files_ok=True))
+    await message.answer(texts.SCEN_PROMPT)

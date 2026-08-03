@@ -8,13 +8,18 @@
 import uuid
 
 from aiogram import F, Router
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import limits, texts
 from bot.db.models import User
-from bot.db.repositories import alias_suggestion_repo, university_repo, university_request_repo
+from bot.db.repositories import (
+    alias_suggestion_repo,
+    university_repo,
+    university_request_repo,
+)
 from bot.enums import PermissionModule, RequestStatus
 from bot.filters.role_filter import HasPerm
 from bot.keyboards.admin_kb import (
@@ -23,7 +28,7 @@ from bot.keyboards.admin_kb import (
     university_request_review_kb,
 )
 from bot.keyboards.callback_data import AliasSugCB, ReviewEditCB, UniReqCB
-from bot.services import university_service
+from bot.services import input_guard, university_service
 from bot.states.university_review_states import ReviewEditForm
 
 router = Router(name="admin_university_review")
@@ -236,3 +241,27 @@ async def cb_uni_not_admin(callback: CallbackQuery) -> None:
 @router.callback_query(AliasSugCB.filter())
 async def cb_alias_not_admin(callback: CallbackQuery) -> None:
     await callback.answer(texts.REVIEW_ADMIN_ONLY, show_alert=True)
+
+
+# --- Последний рубеж исправления ---
+
+# Чем переспросить: тот же вопрос, что бот задал, нажав «Исправить».
+_EDIT_RETRY = {
+    ReviewEditForm.university_request.state: texts.UNI_REQ_EDIT_PROMPT.format(
+        limit=limits.NEW_UNI_ALIASES_MAX
+    ),
+    ReviewEditForm.alias_suggestion.state: texts.ALIAS_EDIT_PROMPT,
+}
+
+
+@router.message(StateFilter(ReviewEditForm), HasPerm(PermissionModule.UNIVERSITIES))
+async def msg_edit_unexpected(message: Message, state: FSMContext) -> None:
+    """Исправление заявки: ответ на то, что принять нельзя (фото, стикер, файл).
+
+    Стоит последним в роутере. Состояние живёт только между «Исправить» и
+    отправкой исправления, поэтому лишнего шума в админ-чате не создаёт.
+    """
+    await message.answer(input_guard.form_explain(message))
+    prompt = _EDIT_RETRY.get(await state.get_state())
+    if prompt is not None:
+        await message.answer(prompt, reply_markup=review_edit_cancel_kb())
