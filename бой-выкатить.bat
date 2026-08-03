@@ -1,7 +1,6 @@
 @echo off
-rem Deploy the current commit to PRODUCTION (/opt/ttc) - live users are affected.
-rem The script refuses to run unless the very same commit was deployed to the
-rem test environment first, and it asks for a typed confirmation.
+rem Deploy the current commit to the server (/opt/ttc) - live users are affected.
+rem The script runs the tests first and asks for a typed confirmation.
 rem
 rem NOTE: keep the contents of this file ASCII-only. "chcp 65001" switches the
 rem console codepage mid-file, and cmd.exe re-reads the remaining bytes with
@@ -17,7 +16,7 @@ if exist ".venv\Scripts\python.exe" (
     set "PY=py"
 )
 
-%PY% -m scripts.deploy prod
+%PY% -m scripts.deploy
 
 echo.
 pause
