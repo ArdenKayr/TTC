@@ -27,6 +27,7 @@ from bot.keyboards.common_kb import main_menu_kb
 from bot.routers.common import send_start_screen
 from bot.services import (
     activity_service,
+    content_service,
     form_nav,
     input_guard,
     notification_service,
@@ -58,6 +59,10 @@ async def _ask_act_description(message: Message) -> None:
         texts.ACT_DESC_PROMPT.format(min=limits.ACT_DESC_MIN, max=limits.ACT_DESC_MAX),
         reply_markup=form_cancel_kb(),
     )
+
+
+async def _ask_act_photo(message: Message) -> None:
+    await message.answer(texts.ACT_PHOTO_PROMPT, reply_markup=form_cancel_kb())
 
 
 async def _ask_act_needs(message: Message) -> None:
@@ -120,6 +125,7 @@ async def _ask_vote_anonymity(message: Message) -> None:
 _ASK_BY_NAME = {
     ActivityForm.title.state: lambda m, st: _ask_act_title(m),
     ActivityForm.description.state: lambda m, st: _ask_act_description(m),
+    ActivityForm.photo.state: lambda m, st: _ask_act_photo(m),
     ActivityForm.needs.state: lambda m, st: _ask_act_needs(m),
     ActivityForm.organizers.state: lambda m, st: _ask_act_organizers(m),
     ActivityForm.plan_url.state: lambda m, st: _ask_act_plan(m),
@@ -217,8 +223,32 @@ async def act_description(message: Message, state: FSMContext) -> None:
         )
         return
     await state.update_data(description=description)
+    await form_nav.goto(state, ActivityForm.photo)
+    await _ask_act_photo(message)
+
+
+@router.message(ActivityForm.photo, F.photo)
+async def act_photo(message: Message, state: FSMContext) -> None:
+    """Обложка поста. Берём самый крупный размер — его и покажем в Афише.
+
+    Telegram присылает одну и ту же фотографию в нескольких размерах, от
+    превью до оригинала; последний в списке — самый большой.
+    """
+    await state.update_data(photo_file_id=message.photo[-1].file_id)
     await form_nav.goto(state, ActivityForm.needs)
     await _ask_act_needs(message)
+
+
+@router.message(ActivityForm.photo, F.document)
+async def act_photo_as_file(message: Message) -> None:
+    """Картинку часто шлют файлом — в посте она тогда не покажется вовсе."""
+    await message.answer(texts.ACT_PHOTO_AS_FILE, reply_markup=form_cancel_kb())
+
+
+@router.message(ActivityForm.photo)
+async def act_photo_needed(message: Message) -> None:
+    """Свой ответ на этом шаге: общий сказал бы «нужен текст», а нужна картинка."""
+    await message.answer(texts.ACT_PHOTO_NEEDED, reply_markup=form_cancel_kb())
 
 
 @router.message(ActivityForm.needs, F.text, ~F.text.startswith("/"))
@@ -289,21 +319,33 @@ async def act_chat_url(message: Message, state: FSMContext) -> None:
 
 
 async def _act_show_confirm(message: Message, state: FSMContext) -> None:
+    """Сводка перед отправкой — вместе с картинкой, которую человек приложил.
+
+    Показать её обязательно: выбрать не то фото в галерее легко, а заметить
+    это по одному названию файла — нет.
+    """
     data = await state.get_data()
-    await message.answer(
-        texts.ACT_CONFIRM.format(
-            title=escape(data["title"]),
-            description=escape(data["description"]),
-            details=activity_service.act_details(
-                data.get("organizers_text"),
-                data.get("plan_url"),
-                data.get("chat_url"),
-                data.get("admin_comment"),
-                needs_text=data.get("needs_text"),
-            ),
+    summary = texts.ACT_CONFIRM.format(
+        title=escape(data["title"]),
+        description=escape(data["description"]),
+        details=activity_service.act_details(
+            data.get("organizers_text"),
+            data.get("plan_url"),
+            data.get("chat_url"),
+            data.get("admin_comment"),
+            needs_text=data.get("needs_text"),
         ),
-        reply_markup=confirm_kb(),
     )
+    photo = data.get("photo_file_id")
+    # Сводка бывает длиннее подписи под картинкой (Telegram — 1024 символа):
+    # тогда картинка уходит отдельным сообщением, а сводка следом за ней.
+    if photo is not None and len(summary) > content_service.CAPTION_LIMIT:
+        await message.answer_photo(photo)
+        photo = None
+    if photo is None:
+        await message.answer(summary, reply_markup=confirm_kb())
+        return
+    await message.answer_photo(photo, caption=summary, reply_markup=confirm_kb())
 
 
 @router.message(ActivityForm.admin_comment, F.text, ~F.text.startswith("/"))
@@ -332,6 +374,7 @@ async def act_submit(
         tg_id=db_user.tg_id,
         title=data["title"],
         description=data["description"],
+        photo_file_id=data.get("photo_file_id"),
         needs_text=data.get("needs_text"),
         organizers_text=data.get("organizers_text"),
         plan_url=data.get("plan_url"),
@@ -344,6 +387,7 @@ async def act_submit(
         message.bot,
         activity_service.build_act_card(db_user, request),
         act_review_kb(str(request.request_id)),
+        photo_file_id=request.photo_file_id,
     )
     await scenario_service.reply(message, session, "act_sent", main_menu_kb(db_user))
 

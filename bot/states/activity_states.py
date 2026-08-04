@@ -4,6 +4,7 @@ from aiogram.fsm.state import State, StatesGroup
 class ActivityForm(StatesGroup):
     title = State()
     description = State()
+    photo = State()  # обложка поста в Афише, обязательна
     needs = State()  # что нужно для проведения: люди, деньги, помещение
     organizers = State()  # кто проводит, @ники (можно пропустить)
     plan_url = State()  # ссылка на план реализации (можно пропустить)

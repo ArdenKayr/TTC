@@ -68,10 +68,11 @@ def _activity(**kwargs) -> Activity:
 @pytest.fixture
 def edits(monkeypatch):
     """Записывает правки карточки в Афише и обращения к владельцу."""
-    log = {"cards": [], "issues": [], "dm": []}
+    log = {"cards": [], "captions": [], "issues": [], "dm": []}
 
-    async def fake_edit(bot, message_id, text):
+    async def fake_edit(bot, message_id, text, is_caption=False):
         log["cards"].append((message_id, text))
+        log["captions"].append(is_caption)
         return True
 
     async def fake_dm(bot, session, tg_id, key, **kwargs):
@@ -124,3 +125,24 @@ def test_owner_is_not_bothered_about_a_deleted_organizer(edits, owner):
     """Некому писать — не о чем и сообщать."""
     _close(_activity(), owner)
     assert edits["issues"] == []
+
+
+def test_a_card_with_a_picture_is_marked_in_its_caption(edits, owner):
+    """Пост с картинкой — это подпись, а не текст: правится другим способом.
+
+    Перепутать способы — значит получить отказ Telegram и закрытое
+    мероприятие, которое так и висит в Афише активным.
+    """
+    _close(_activity(afisha_is_caption=True), owner)
+    assert edits["captions"] == [True]
+
+
+def test_an_old_text_card_is_still_marked_as_text(edits, owner):
+    """У мероприятий, поданных до картинок, карточка обычная текстовая.
+
+    Проверяем именно выбранный способ правки, а не значение поля: у записи,
+    не прошедшей через базу, умолчание ещё не проставлено и там пусто — на
+    поведение это не влияет, но букву сравнивать бессмысленно.
+    """
+    _close(_activity(), owner)
+    assert not edits["captions"][0]

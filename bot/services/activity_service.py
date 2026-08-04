@@ -142,6 +142,7 @@ async def approve_activity(
         organizer_id=request.tg_id,
         title=request.title,
         description=request.description,
+        photo_file_id=request.photo_file_id,
         needs_text=request.needs_text,
         organizers_text=request.organizers_text,
         plan_url=request.plan_url,
@@ -164,10 +165,10 @@ async def approve_activity(
         )
 
     notes = [texts.ACT_APPROVED_NOTE.format(admin=admin.display_name)]
-    afisha_message_id = await notification_service.send_afisha_card(
-        bot, _afisha_text(activity, author)
+    post = await notification_service.send_afisha_card(
+        bot, _afisha_text(activity, author), activity.photo_file_id
     )
-    if afisha_message_id is None:
+    if post is None:
         notes.append(texts.NOTE_AFISHA_FAILED)
         await error_service.report_issue(
             bot,
@@ -176,7 +177,9 @@ async def approve_activity(
             note=f"Мероприятие «{request.title}» одобрено, но карточка в Афишу не встала "
             "(проверьте права бота и номер топика).",
         )
-    activity.afisha_message_id = afisha_message_id
+    if post is not None:
+        activity.afisha_message_id = post.message_id
+        activity.afisha_is_caption = post.is_caption
 
     request.status = RequestStatus.APPROVED
     request.processed_by = admin.tg_id
@@ -348,7 +351,10 @@ async def finish_activity(
     # Вместо имени в ней встанет пометка об удалённой записи.
     if activity.afisha_message_id is not None:
         await notification_service.edit_afisha_card(
-            bot, activity.afisha_message_id, _afisha_text(activity, organizer)
+            bot,
+            activity.afisha_message_id,
+            _afisha_text(activity, organizer),
+            is_caption=activity.afisha_is_caption,
         )
 
     demoted = False
