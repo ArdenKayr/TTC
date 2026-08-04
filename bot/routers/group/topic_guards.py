@@ -42,6 +42,25 @@ async def cmd_admin_call(message: Message) -> None:
         await _notify_admin_call(message)
 
 
+@router.message(Command("id"), F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
+async def cmd_chat_id(message: Message, db_user: User | None) -> None:
+    """Называет номер чата и темы — их вписывают в настройки бота.
+
+    Закрытую группу нельзя найти по имени: имени у неё нет. Раньше номер брался
+    из публичного имени сам, теперь взять его больше неоткуда — кроме как
+    спросить у самого бота.
+
+    Отвечает в любой группе, в том числе ещё не прописанной в настройках: иначе
+    команда молчала бы именно в тот момент, ради которого она и сделана.
+    """
+    if db_user is None or db_user.current_role not in FULL_ADMIN_ROLES:
+        return
+    answer = texts.CHAT_ID_REPORT.format(chat_id=message.chat.id)
+    if message.message_thread_id is not None:
+        answer += texts.CHAT_ID_TOPIC.format(thread_id=message.message_thread_id)
+    await message.reply(answer)
+
+
 @router.message(F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}), SERVICE_MESSAGE)
 async def delete_group_service_message(message: Message) -> None:
     """Служебный мусор в общей группе («X присоединился» и т.п.) — удаляем.

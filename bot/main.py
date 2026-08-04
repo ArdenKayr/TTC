@@ -16,10 +16,10 @@ from bot.routers.admin.activity_review import router as activity_review_router
 from bot.routers.admin.content_admin import router as content_admin_router
 from bot.routers.admin.crud_admin import router as crud_admin_router
 from bot.routers.admin.owner_panel import router as owner_panel_router
-from bot.routers.admin.scenario_admin import router as scenario_admin_router
 from bot.routers.admin.permissions_admin import router as permissions_admin_router
 from bot.routers.admin.registration_review import router as registration_review_router
 from bot.routers.admin.report_review import router as report_review_router
+from bot.routers.admin.scenario_admin import router as scenario_admin_router
 from bot.routers.admin.university_review import router as university_review_router
 from bot.routers.common import router as common_router
 from bot.routers.group.admin_chat import router as admin_chat_router
@@ -31,19 +31,59 @@ from bot.routers.user_menu import router as user_menu_router
 from bot.services.error_service import on_error
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+async def check_invite_rights(bot: Bot, chat_id: int) -> None:
+    """Может ли бот выдавать ссылки в группу. Только предупреждение в журнал.
+
+    Группа закрытая: попасть в неё можно единственным способом — по ссылке,
+    которую создаёт бот. Без права «Приглашать пользователей по ссылке» он
+    молча перестанет пускать людей, и это выяснится не из журнала, а из жалоб
+    тех, кто остался за дверью. Поэтому спрашиваем сразу при запуске.
+    """
+    try:
+        me = await bot.get_chat_member(chat_id, (await bot.me()).id)
+    except TelegramAPIError as e:
+        logger.warning("Не удалось проверить права бота в группе %s: %s", chat_id, e)
+        return
+    if getattr(me, "can_invite_users", False):
+        return
+    logger.warning(
+        "Бот в группе %s имеет статус %r и не может приглашать по ссылке: "
+        "люди не смогут вступить. Нужны права администратора, среди них "
+        "«Приглашать пользователей по ссылке».",
+        chat_id,
+        me.status,
+    )
 
 
 async def resolve_group_chat_id(bot: Bot) -> None:
-    """GROUP_CHAT_ID may be a public @username; handlers compare numeric chat ids."""
-    if not isinstance(settings.group_chat_id, str):
+    """Приводит GROUP_CHAT_ID к числу и проверяет, что группа боту доступна.
+
+    В настройке допустимо и публичное имя, но у закрытой группы его нет —
+    только число. Число раньше принималось на веру: ошибка в нём выглядела для
+    людей ровно как поломка ссылок и Афиши, а в журнале не оставляла ни строки.
+    Теперь спрашиваем Telegram в обоих случаях.
+    """
+    configured = settings.group_chat_id
+    if configured is None:
+        logger.warning("GROUP_CHAT_ID не задан: групповая часть бота выключена.")
         return
     try:
-        chat = await bot.get_chat(settings.group_chat_id)
-        settings.group_chat_id = chat.id
-        logging.info("Resolved group %s -> %s", chat.username, chat.id)
+        chat = await bot.get_chat(configured)
     except TelegramAPIError as e:
-        logging.warning("Failed to resolve GROUP_CHAT_ID %r: %s", settings.group_chat_id, e)
-        settings.group_chat_id = None
+        logger.warning("Не удалось открыть группу %r: %s", configured, e)
+        if isinstance(configured, str):
+            # Имя, которое не открылось, слать некуда: обработчики сравнивают
+            # числовые id, а send_message по такому имени всё равно упадёт.
+            settings.group_chat_id = None
+        # Числу верим дальше: оно задано человеком явно, и разовый сбой связи
+        # не повод выключать группу до следующего перезапуска.
+        return
+    settings.group_chat_id = chat.id
+    logger.info("Группа найдена: %r -> %s", configured, chat.id)
+    await check_invite_rights(bot, chat.id)
 
 
 async def main() -> None:
