@@ -17,11 +17,64 @@ from bot.keyboards.common_kb import main_menu_kb
 from bot.services import error_service, notification_service, scenario_service
 from bot.services.throttle import rejection_timeout_minutes
 
+# Ссылка одноразовая и живёт недолго: она именная, по ней входит один человек.
+# Из-за короткого срока люди её и теряли — не успел вставить, ссылка истекла.
+# Поэтому новую можно взять в любой момент кнопкой «🔗 Ссылка на группу».
 INVITE_LINK_TTL = timedelta(minutes=15)
+INVITE_LINK_MINUTES = int(INVITE_LINK_TTL.total_seconds() // 60)
 
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+async def create_invite_link(bot: Bot, tg_id: int, source: str) -> str | None:
+    """Одноразовая ссылка в группу. None — если создать не вышло.
+
+    Единственное место, где эти ссылки рождаются: и при одобрении заявки, и по
+    кнопке. Иначе срок жизни и ограничение «на одного человека» разъехались бы
+    между двумя копиями кода.
+    """
+    if settings.group_chat_id is None:
+        await error_service.report_issue(
+            bot,
+            source=source,
+            tg_id=tg_id,
+            note="GROUP_CHAT_ID не настроен — инвайт-ссылка не создана.",
+        )
+        return None
+    try:
+        link = await bot.create_chat_invite_link(
+            settings.group_chat_id,
+            name=f"reg:{tg_id}",
+            expire_date=_utcnow() + INVITE_LINK_TTL,
+            member_limit=1,
+        )
+    except TelegramAPIError as e:
+        await error_service.report_issue(
+            bot,
+            source=source,
+            tg_id=tg_id,
+            note=f"Не удалось создать инвайт-ссылку: {e}",
+        )
+        return None
+    return link.invite_link
+
+
+async def is_group_member(bot: Bot, tg_id: int) -> bool:
+    """Человек уже в группе? Тогда новая ссылка ему не нужна.
+
+    Telegram может и не ответить (нет прав, чат недоступен) — в этом случае
+    считаем, что не в группе: выдать лишнюю ссылку безобиднее, чем отказать
+    тому, кто в группу так и не попал.
+    """
+    if settings.group_chat_id is None:
+        return False
+    try:
+        member = await bot.get_chat_member(settings.group_chat_id, tg_id)
+    except TelegramAPIError:
+        return False
+    return member.status in ("creator", "administrator", "member")
 
 
 async def check_can_apply(session: AsyncSession, tg_id: int) -> str | None:
@@ -176,31 +229,15 @@ async def approve(
 
     notes = []
     invite_line = ""
-    if settings.group_chat_id is not None:
-        try:
-            link = await bot.create_chat_invite_link(
-                settings.group_chat_id,
-                name=f"reg:{request.tg_id}",
-                expire_date=_utcnow() + INVITE_LINK_TTL,
-                member_limit=1,
-            )
-            invite_line = texts.APPROVED_DM_INVITE.format(link=link.invite_link)
-        except TelegramAPIError as e:
-            notes.append(texts.NOTE_LINK_FAILED)
-            await error_service.report_issue(
-                bot,
-                source="Регистрация: одобрение",
-                tg_id=request.tg_id,
-                note=f"Не удалось создать инвайт-ссылку: {e}",
-            )
-    else:
-        notes.append(texts.NOTE_GROUP_NOT_SET)
-        await error_service.report_issue(
-            bot,
-            source="Регистрация: одобрение",
-            tg_id=request.tg_id,
-            note="GROUP_CHAT_ID не настроен — инвайт-ссылка не создана.",
+    link = await create_invite_link(bot, request.tg_id, "Регистрация: одобрение")
+    if link is not None:
+        invite_line = texts.APPROVED_DM_INVITE.format(
+            link=link, minutes=INVITE_LINK_MINUTES, button=texts.BTN.INFO_GROUP_LINK
         )
+    elif settings.group_chat_id is None:
+        notes.append(texts.NOTE_GROUP_NOT_SET)
+    else:
+        notes.append(texts.NOTE_LINK_FAILED)
 
     # Вместе с поздравлением человек получает меню участника: до этого момента
     # у него внизу экрана висит «📝 Регистрация», и сама она уже не сработает.

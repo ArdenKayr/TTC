@@ -29,6 +29,7 @@ from bot.services import (
     content_service,
     input_guard,
     permission_service,
+    registration_service,
     report_service,
     scenario_service,
 )
@@ -70,6 +71,32 @@ async def info_show(message: Message, session: AsyncSession, db_user: User | Non
         return
     content = await content_service.get_content(session, _INFO_SLOTS[message.text])
     await content_service.send_content(message, content)
+
+
+@router.message(_PRIVATE, StateFilter(None), F.text == texts.BTN.INFO_GROUP_LINK)
+async def info_group_link(message: Message, db_user: User | None) -> None:
+    """Новая ссылка на вступление в группу — в любой момент.
+
+    Ссылка именная и живёт 15 минут, и именно из-за срока её теряли: скопировал,
+    отвлёкся, вернулся — а вступать уже нечем, и человек оставался за дверью
+    с одобренной заявкой. Теперь дверь открывается заново одной кнопкой.
+    """
+    if db_user is None:
+        return
+    if await registration_service.is_group_member(message.bot, db_user.tg_id):
+        await message.answer(texts.GROUP_LINK_ALREADY_MEMBER)
+        return
+    link = await registration_service.create_invite_link(
+        message.bot, db_user.tg_id, "Ссылка на группу по кнопке"
+    )
+    if link is None:
+        await message.answer(texts.GROUP_LINK_FAILED)
+        return
+    await message.answer(
+        texts.GROUP_LINK_NEW.format(
+            link=link, minutes=registration_service.INVITE_LINK_MINUTES
+        )
+    )
 
 
 @router.message(_PRIVATE, StateFilter(None), F.text == texts.BTN.INFO_ADMIN_REGS)

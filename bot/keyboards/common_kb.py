@@ -126,6 +126,9 @@ def info_menu_kb(is_superadmin: bool) -> ReplyKeyboardMarkup:
             [KeyboardButton(text=texts.BTN.INFO_GUIDE)],
             [KeyboardButton(text=texts.BTN.START_ABOUT), KeyboardButton(text=texts.BTN.INFO_RULES)],
             [KeyboardButton(text=texts.BTN.INFO_DOCS), KeyboardButton(text=texts.BTN.INFO_UPDATES)],
+            # Ссылка в группу живёт 15 минут, и её постоянно теряли: скопировал,
+            # отвлёкся, вернулся — а она истекла. Кнопка выдаёт новую в любой момент.
+            [KeyboardButton(text=texts.BTN.INFO_GROUP_LINK)],
             [
                 KeyboardButton(text=texts.BTN.INFO_BECOME_ORG),
                 KeyboardButton(text=texts.BTN.INFO_BECOME_ADMIN),
