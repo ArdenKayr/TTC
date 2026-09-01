@@ -18,7 +18,6 @@
 
 import logging
 import traceback
-from datetime import datetime, timezone
 from html import escape
 
 from aiogram import Bot
@@ -26,7 +25,7 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.types import ErrorEvent
 from sqlalchemy import select
 
-from bot import texts
+from bot import texts, timefmt
 from bot.db.base import async_session_factory
 from bot.db.models import ErrorLog, User
 from bot.db.repositories import user_repo
@@ -107,7 +106,7 @@ async def _persist_and_notify(
 
     dm = texts.ERROR_OWNER_DM.format(
         id=row.id,
-        time=datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M:%S"),
+        time=timefmt.now_full(),
         upd=update_type or "—",
         user=escape(format_person(user_tg_id, labels)),
         chat=chat_id or "—",

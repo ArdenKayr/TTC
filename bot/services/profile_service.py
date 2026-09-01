@@ -29,7 +29,12 @@ from bot.db.models import (
 )
 from bot.db.repositories import audit_repo
 from bot.enums import ActivityStatus, ActorType, AuditAction, UserRole
-from bot.services import activity_service, error_service, notification_service
+from bot.services import (
+    activity_service,
+    error_service,
+    group_service,
+    notification_service,
+)
 
 
 async def render_profile(session: AsyncSession, user: User) -> str:
@@ -131,5 +136,5 @@ async def delete_account(session: AsyncSession, bot: Bot, user: User) -> None:
                 bot,
                 source="Удаление аккаунта",
                 tg_id=tg_id,
-                note=f"Профиль удалён из базы, но исключить из группы не удалось: {e}",
+                note=group_service.describe_removal_failure(e, "Профиль удалён из базы"),
             )

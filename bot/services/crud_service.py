@@ -26,6 +26,7 @@ import sqlalchemy as sa
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot import timefmt
 from bot.db.models import (
     Activity,
     ActivityRequest,
@@ -207,7 +208,7 @@ def fmt_value(value: Any, limit: int = _VALUE_LIMIT) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, datetime):
-        return value.strftime("%d.%m.%Y %H:%M:%S")
+        return timefmt.full(value)
     if isinstance(value, date):
         return value.strftime("%d.%m.%Y")
     if isinstance(value, (dict, list)):

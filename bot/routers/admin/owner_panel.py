@@ -22,7 +22,7 @@ from aiogram.types import (
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot import texts
+from bot import texts, timefmt
 from bot.db.models import ErrorLog, User
 from bot.db.repositories import audit_repo, user_repo
 from bot.enums import AuditAction as _A
@@ -153,7 +153,7 @@ def _audit_line(row, labels: dict[int, str]) -> str:
         target = escape(str(row.target_entity_id))
     else:
         target = None
-    line = f"{row.created_at:%d.%m %H:%M} · <b>{escape(label)}</b> · {actor}"
+    line = f"{timefmt.short(row.created_at)} · <b>{escape(label)}</b> · {actor}"
     if target:
         line += f" → {target}"
     if row.reason:
@@ -166,7 +166,7 @@ def _audit_line(row, labels: dict[int, str]) -> str:
 def _error_line(row: ErrorLog, labels: dict[int, str]) -> str:
     who = f" · {escape(format_person(row.user_tg_id, labels))}" if row.user_tg_id else ""
     return (
-        f"№{row.id} {row.occurred_at:%d.%m %H:%M} · <b>{escape(row.exception_type)}</b>: "
+        f"№{row.id} {timefmt.short(row.occurred_at)} · <b>{escape(row.exception_type)}</b>: "
         f"{escape(row.exception_message[:60])}{who}"
     )
 

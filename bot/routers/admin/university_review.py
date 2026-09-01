@@ -28,20 +28,11 @@ from bot.keyboards.admin_kb import (
     university_request_review_kb,
 )
 from bot.keyboards.callback_data import AliasSugCB, ReviewEditCB, UniReqCB
+from bot.routers.admin import review_ui
 from bot.services import input_guard, university_service
 from bot.states.university_review_states import ReviewEditForm
 
 router = Router(name="admin_university_review")
-
-
-async def _apply_review_result(callback: CallbackQuery, ok: bool, note: str) -> None:
-    if not ok:
-        await callback.answer(note, show_alert=True)
-        return
-    await callback.message.edit_text(
-        callback.message.html_text + f"\n\n{note}", reply_markup=None
-    )
-    await callback.answer(texts.REVIEW_DONE)
 
 
 def _parse_request_edit(text: str) -> tuple[str, list[str]] | None:
@@ -64,20 +55,22 @@ def _parse_request_edit(text: str) -> tuple[str, list[str]] | None:
 async def cb_uni_approve(
     callback: CallbackQuery, callback_data: UniReqCB, session: AsyncSession, db_user: User
 ) -> None:
+    await review_ui.ack(callback)
     ok, note = await university_service.approve_request(
         session, callback.bot, uuid.UUID(callback_data.request_id), db_user
     )
-    await _apply_review_result(callback, ok, note)
+    await review_ui.show_result(callback, ok, note)
 
 
 @router.callback_query(UniReqCB.filter(F.action == "reject"), HasPerm(PermissionModule.UNIVERSITIES))
 async def cb_uni_reject(
     callback: CallbackQuery, callback_data: UniReqCB, session: AsyncSession, db_user: User
 ) -> None:
+    await review_ui.ack(callback)
     ok, note = await university_service.reject_request(
         session, callback.bot, uuid.UUID(callback_data.request_id), db_user
     )
-    await _apply_review_result(callback, ok, note)
+    await review_ui.show_result(callback, ok, note)
 
 
 @router.callback_query(UniReqCB.filter(F.action == "edit"), HasPerm(PermissionModule.UNIVERSITIES))
@@ -146,20 +139,22 @@ async def msg_uni_edit(
 async def cb_alias_approve(
     callback: CallbackQuery, callback_data: AliasSugCB, session: AsyncSession, db_user: User
 ) -> None:
+    await review_ui.ack(callback)
     ok, note = await university_service.approve_alias(
         session, callback.bot, uuid.UUID(callback_data.suggestion_id), db_user
     )
-    await _apply_review_result(callback, ok, note)
+    await review_ui.show_result(callback, ok, note)
 
 
 @router.callback_query(AliasSugCB.filter(F.action == "reject"), HasPerm(PermissionModule.UNIVERSITIES))
 async def cb_alias_reject(
     callback: CallbackQuery, callback_data: AliasSugCB, session: AsyncSession, db_user: User
 ) -> None:
+    await review_ui.ack(callback)
     ok, note = await university_service.reject_alias(
         session, callback.bot, uuid.UUID(callback_data.suggestion_id), db_user
     )
-    await _apply_review_result(callback, ok, note)
+    await review_ui.show_result(callback, ok, note)
 
 
 @router.callback_query(AliasSugCB.filter(F.action == "edit"), HasPerm(PermissionModule.UNIVERSITIES))

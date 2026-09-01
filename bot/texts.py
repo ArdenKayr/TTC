@@ -540,9 +540,14 @@ CARD_REJECTED = "❌ Отклонена — {admin}"
 NOTE_LINK_FAILED = "⚠️ Не удалось создать инвайт-ссылку (проверьте права бота в группе)."
 NOTE_GROUP_NOT_SET = "⚠️ GROUP_CHAT_ID не настроен — инвайт-ссылка не создана."
 NOTE_DM_FAILED = "⚠️ Не удалось отправить сообщение пользователю."
+NOTE_REMOVE_FAILED = "{done}, но исключить из группы не удалось: {error}"
+NOTE_REMOVE_CHAT_OWNER = (
+    "{done}, но из группы он не исключён: Telegram не позволяет исключать "
+    "создателя группы — ни боту, ни людям. Это ограничение Telegram, а не "
+    "сбой бота: делать ничего не нужно."
+)
 REVIEW_NOT_FOUND = "Заявка не найдена."
 REVIEW_ALREADY_PROCESSED = "Заявка уже обработана другим админом."
-REVIEW_DONE = "Готово"
 REVIEW_ADMIN_ONLY = "⛔ Действие доступно только админам."
 
 # --- Панель прав админов («⚙️ Права», только для полных админов) ---
@@ -853,7 +858,7 @@ CRUD_CANCELLED = "Отменено."
 # --- Логи (панель владельца) ---
 LOGS_PICK_CAT = "📜 <b>Логи</b>\nЧто смотрим?"
 LOGS_PICK_PERIOD = "Тема «{cat}». За какой период?"
-LOGS_HEADER = "📜 <b>{cat}</b> — {period}. Записей: {total}{suffix}\n\n"
+LOGS_HEADER = "📜 <b>{cat}</b> — {period}. Записей: {total}{suffix}\nВремя московское.\n\n"
 LOGS_SHOWN_SUFFIX = " (показаны последние {shown})"
 LOGS_EMPTY = "📜 {cat} — {period}: записей нет."
 LOGS_ERR_FOOTER = "\n\nПолные записи с трейсбеками — CRUD → «Логи ошибок»."
@@ -920,7 +925,7 @@ UPD_CANCELLED = "Отменено."
 # --- Карточка ошибки владельцу ---
 ERROR_OWNER_DM = (
     "🐞 <b>Ошибка в боте</b> — запись №{id}\n"
-    "🕐 {time} UTC\n"
+    "🕐 {time} МСК\n"
     "📍 Апдейт: {upd} · пользователь: {user} · чат: {chat}\n"
     "💬 Ввод: <code>{input}</code>\n"
     "❗ <b>{exc_type}</b>: {exc_msg}\n\n"

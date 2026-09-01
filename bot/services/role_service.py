@@ -12,7 +12,7 @@ from bot.db.models import User
 from bot.db.repositories import audit_repo
 from bot.keyboards.common_kb import main_menu_kb
 from bot.enums import AuditAction, UserRole, role_rank
-from bot.services import error_service, scenario_service
+from bot.services import error_service, group_service, scenario_service
 
 # Иерархия назначений: простые админы роли не раздают, суперадмин назначает
 # до админа включительно, владелец — до суперадмина. Роль «владелец» не
@@ -123,7 +123,7 @@ async def ban_user(
                 bot,
                 source="Бан",
                 tg_id=target.tg_id,
-                note=f"Роль сменена на «забанен», но исключить из группы не удалось: {e}",
+                note=group_service.describe_removal_failure(e, "В боте человек заблокирован"),
             )
     await audit_repo.add(
         session,
