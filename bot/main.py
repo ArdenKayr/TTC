@@ -29,6 +29,7 @@ from bot.routers.registration import router as registration_router
 from bot.routers.superadmin import router as superadmin_router
 from bot.routers.user_menu import router as user_menu_router
 from bot.services.error_service import on_error
+from bot.telegram_session import TelegramSession
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -87,7 +88,11 @@ async def resolve_group_chat_id(bot: Bot) -> None:
 
 
 async def main() -> None:
-    bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    bot = Bot(
+        token=settings.bot_token,
+        session=TelegramSession(settings.telegram_ip_family),
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    )
     storage = RedisStorage.from_url(settings.redis_url)
     dp = Dispatcher(storage=storage)
 

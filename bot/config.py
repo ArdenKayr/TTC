@@ -36,6 +36,11 @@ class Settings(BaseSettings):
             return int(value)
         return value
 
+    # Каким протоколом ходить в Telegram: auto | ipv6 | ipv4. На боевом сервере
+    # IPv4 до api.telegram.org не работает вовсе, и запрос по нему молча висит,
+    # поэтому там стоит ipv6. Подробности — bot/telegram_session.py.
+    telegram_ip_family: str = "auto"
+
     database_url: str
     redis_url: str
 
