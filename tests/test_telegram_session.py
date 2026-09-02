@@ -70,9 +70,39 @@ def test_unknown_family_explains_itself() -> None:
 def test_waiting_is_limited() -> None:
     """Минута ожидания — это минута молчания бота для живого человека."""
     session = TelegramSession("auto")
-    assert session.timeout.total == TOTAL_TIMEOUT
-    assert session.timeout.sock_connect == CONNECT_TIMEOUT
+    assert session.request_timeout.total == TOTAL_TIMEOUT
+    assert session.request_timeout.sock_connect == CONNECT_TIMEOUT
     assert TOTAL_TIMEOUT < 60, "Смысл всей затеи — ждать заметно меньше умолчания."
+
+
+def test_polling_can_still_do_arithmetic_on_the_timeout() -> None:
+    """`session.timeout` обязан остаться числом.
+
+    Опрос событий складывает его со своим сроком ожидания
+    (`int(bot.session.timeout + polling_timeout)`). Объект на этом месте
+    роняет бота при старте — проверено на бою 02.09.2026, контейнер ушёл
+    в цикл перезапуска сразу после выкатки.
+    """
+    session = TelegramSession("auto")
+    assert int(session.timeout + 30) == int(TOTAL_TIMEOUT) + 30
+
+
+def test_ordinary_requests_get_our_timeouts(monkeypatch) -> None:
+    """Свои сроки подставляются туда, где библиотека их не назвала."""
+    seen = {}
+
+    async def fake_make_request(self, bot, method, timeout=None):
+        seen["timeout"] = timeout
+
+    monkeypatch.setattr(
+        telegram_session.AiohttpSession, "make_request", fake_make_request, raising=True
+    )
+    session = TelegramSession("auto")
+    asyncio.run(session.make_request(bot=None, method=_Method()))
+    assert seen["timeout"] is session.request_timeout
+
+    asyncio.run(session.make_request(bot=None, method=_Method(), timeout=50))
+    assert seen["timeout"] == 50, "Ожидание опроса событий трогать нельзя."
 
 
 def test_connection_phase_is_told_by_time() -> None:

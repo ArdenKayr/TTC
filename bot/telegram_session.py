@@ -96,7 +96,10 @@ class TelegramSession(AiohttpSession):
     """Связь с Telegram с ограниченным ожиданием и выбором протокола."""
 
     def __init__(self, ip_family: str = "auto") -> None:
-        super().__init__()
+        # `timeout` остаётся числом сознательно: опрос событий складывает его
+        # со своим сроком ожидания (`session.timeout + polling_timeout`), и
+        # объект на этом месте роняет бота при старте.
+        super().__init__(timeout=TOTAL_TIMEOUT)
         family = FAMILIES.get(ip_family)
         if family is None:
             raise ValueError(
@@ -105,9 +108,9 @@ class TelegramSession(AiohttpSession):
             )
         if family is not socket.AF_UNSPEC:
             self._connector_init["family"] = family
-        # Значение уходит прямо в aiohttp, поэтому здесь можно задать
-        # раздельные сроки: отдельно на соединение, отдельно на весь запрос.
-        self.timeout = ClientTimeout(total=TOTAL_TIMEOUT, sock_connect=CONNECT_TIMEOUT)
+        # А раздельные сроки — отдельно на соединение, отдельно на весь запрос —
+        # подставляются в каждый обычный запрос ниже, уже для самой aiohttp.
+        self.request_timeout = ClientTimeout(total=TOTAL_TIMEOUT, sock_connect=CONNECT_TIMEOUT)
         self.middleware(retry_on_lost_connection)
         logger.info(
             "Связь с Telegram: протокол %s, соединение до %.0f с, запрос до %.0f с, попыток %d.",
@@ -116,3 +119,19 @@ class TelegramSession(AiohttpSession):
             TOTAL_TIMEOUT,
             RETRIES,
         )
+
+    async def make_request(
+        self,
+        bot: Bot,
+        method: TelegramMethod[TelegramType],
+        timeout: int | None = None,
+    ) -> TelegramType:
+        """Обычный запрос ждёт по нашим срокам, опрос событий — по своим.
+
+        Опрос сам присылает сюда своё ожидание (оно намеренно долгое: в этом
+        весь смысл long polling). Подставляем свои сроки только там, где
+        библиотека не назвала никаких.
+        """
+        if timeout is None:
+            timeout = self.request_timeout
+        return await super().make_request(bot, method, timeout=timeout)
