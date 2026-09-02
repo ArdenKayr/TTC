@@ -26,6 +26,23 @@ def _is_main_group(message: Message) -> bool:
     return settings.group_chat_id is not None and message.chat.id == settings.group_chat_id
 
 
+def _speaks_as_the_group(message: Message) -> bool:
+    """Сообщение отправлено от лица самой группы — то есть анонимным админом.
+
+    Telegram прячет такого отправителя: вместо человека в сообщении стоит
+    служебный аккаунт, а настоящее авторство видно только по `sender_chat`.
+    Искать его в базе бесполезно — он там не появится никогда, и охрана тем
+    принимала админа, пишущего «от группы», за постороннего и стирала его
+    объявления.
+
+    Писать от лица группы может только её администратор — это правило самого
+    Telegram, поэтому проверять больше нечего. Чужой канал сюда не подходит:
+    сверяем, что говорят от лица именно этой группы, а не от имени чьего-то
+    постороннего канала.
+    """
+    return message.sender_chat is not None and message.sender_chat.id == message.chat.id
+
+
 async def _notify_admin_call(message: Message) -> None:
     sender = message.from_user
     who = f"@{sender.username}" if sender.username else sender.full_name
@@ -82,7 +99,9 @@ async def group_message(message: Message, db_user: User | None) -> None:
         return
 
     read_only_topics = {settings.topic_announcements_id, settings.topic_afisha_id} - {None}
-    is_admin = db_user is not None and db_user.current_role in FULL_ADMIN_ROLES
+    is_admin = _speaks_as_the_group(message) or (
+        db_user is not None and db_user.current_role in FULL_ADMIN_ROLES
+    )
     if message.message_thread_id in read_only_topics and not is_admin:
         try:
             await message.delete()
