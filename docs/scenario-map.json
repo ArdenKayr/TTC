@@ -5234,6 +5234,153 @@
           ]
         },
         {
+          "id": "bcast_start",
+          "trigger_kind": "reply_button",
+          "trigger_ref": "BTN.ADMIN_PANEL_BROADCAST",
+          "where": "dm",
+          "roles": [
+            "owner"
+          ],
+          "handler": "bot/routers/admin/owner_panel.py:broadcast_start",
+          "does": "Начинает письмо всем участникам и ждёт текст или файл с подписью.",
+          "shows": "Просьбу прислать текст или фото/документ, оговорку, что письмо уйдёт как написано и в раздел «Обновления» не попадёт, и кнопку «Отмена».",
+          "next": [
+            "bcast_text",
+            "bcast_photo",
+            "bcast_doc",
+            "bcast_cancel",
+            "bcast_menu_pressed",
+            "bcast_start_over"
+          ]
+        },
+        {
+          "id": "bcast_text",
+          "trigger_kind": "message",
+          "trigger_text": "любой текст, не начинающийся со «/»",
+          "where": "dm",
+          "roles": [
+            "owner"
+          ],
+          "handler": "bot/routers/admin/owner_panel.py:broadcast_text",
+          "does": "Запоминает письмо и показывает его в точности таким, каким его получат люди. Пока никому не уходит.",
+          "shows": "«Вот что получат люди», сам текст и вопрос «Отправляем всем?» с кнопками «Отправить всем» и «Отмена».",
+          "next": [
+            "bcast_send",
+            "bcast_cancel"
+          ]
+        },
+        {
+          "id": "bcast_photo",
+          "trigger_kind": "message",
+          "trigger_text": "фото",
+          "where": "dm",
+          "roles": [
+            "owner"
+          ],
+          "handler": "bot/routers/admin/owner_panel.py:broadcast_photo",
+          "does": "Готовит письмо с картинкой и подписью к ней.",
+          "shows": "Предпросмотр картинки с подписью и вопрос «Отправляем всем?».",
+          "next": [
+            "bcast_send",
+            "bcast_cancel"
+          ]
+        },
+        {
+          "id": "bcast_doc",
+          "trigger_kind": "message",
+          "trigger_text": "документ (файл)",
+          "where": "dm",
+          "roles": [
+            "owner"
+          ],
+          "handler": "bot/routers/admin/owner_panel.py:broadcast_document",
+          "does": "Готовит письмо с файлом и подписью к нему.",
+          "shows": "Предпросмотр файла с подписью и вопрос «Отправляем всем?».",
+          "next": [
+            "bcast_send",
+            "bcast_cancel"
+          ]
+        },
+        {
+          "id": "bcast_send",
+          "trigger_kind": "inline_button",
+          "trigger_ref": "BTN.BCAST_SEND",
+          "where": "dm",
+          "roles": [
+            "owner"
+          ],
+          "handler": "bot/routers/admin/owner_panel.py:cb_broadcast_action",
+          "does": "Шлёт письмо в личку всем зарегистрированным, кроме забаненных, и записывает рассылку в журнал действий. В раздел «Обновления» письмо не попадает.",
+          "shows": "Отчёт: скольким из скольких доставлено, и почему часть писем дойти не может — Telegram не разрешает боту писать первым.",
+          "db_reads": [
+            "users"
+          ],
+          "db_writes": [
+            "audit_log"
+          ],
+          "notifies": [
+            "всем зарегистрированным, кроме забаненных, в ЛС",
+            "владельцу — отчёт о доставке"
+          ]
+        },
+        {
+          "id": "bcast_cancel",
+          "trigger_kind": "inline_button",
+          "trigger_ref": "BTN.CONTENT_CANCEL",
+          "where": "dm",
+          "roles": [
+            "owner"
+          ],
+          "handler": "bot/routers/admin/owner_panel.py:cb_broadcast_action",
+          "does": "Бросает подготовленное письмо, никому ничего не уходит.",
+          "shows": "«Рассылка отменена.»"
+        },
+        {
+          "id": "bcast_menu_pressed",
+          "trigger_kind": "reply_button",
+          "trigger_text": "любая кнопка нижнего меню",
+          "where": "dm",
+          "roles": [
+            "owner"
+          ],
+          "handler": "bot/routers/admin/owner_panel.py:broadcast_menu_pressed",
+          "does": "Нажатие кнопки меню во время подготовки письма отменяет рассылку, а не становится её текстом.",
+          "shows": "«Рассылка отменена.»"
+        },
+        {
+          "id": "bcast_start_over",
+          "trigger_kind": "command",
+          "trigger_text": "/start",
+          "where": "dm",
+          "roles": [
+            "owner"
+          ],
+          "handler": "bot/routers/admin/owner_panel.py:broadcast_start_over",
+          "does": "Бросает подготовку письма и возвращает на стартовый экран.",
+          "shows": "Стартовый экран с приветствием и обычным меню.",
+          "db_reads": [
+            "content_blocks"
+          ]
+        },
+        {
+          "id": "bcast_unexpected",
+          "trigger_kind": "message",
+          "trigger_text": "стикер или голосовое вместо текста письма; сообщение на шаге «Отправляем всем?»",
+          "where": "dm",
+          "roles": [
+            "owner"
+          ],
+          "handler": "bot/routers/admin/owner_panel.py:broadcast_unexpected",
+          "does": "На шаге набора — отвечает, что принимается текст, фото или файл. На шаге подтверждения бот сообщения не читает и говорит, что решение принимается кнопками под предпросмотром.",
+          "shows": "Объяснение, что пришло не то, и снова просьбу прислать письмо — либо напоминание нажать «✉️ Отправить всем» или «Отмена».",
+          "next": [
+            "bcast_text",
+            "bcast_photo",
+            "bcast_doc",
+            "bcast_send"
+          ]
+        },
+        {
           "id": "err_owner_card",
           "trigger_kind": "auto",
           "trigger_text": "необработанная ошибка в любом действии бота",

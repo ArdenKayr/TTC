@@ -100,5 +100,6 @@ class AuditAction(str, Enum):
     CRUD_UPDATED = "crud_updated"
     CRUD_DELETED = "crud_deleted"
     UPDATE_PUBLISHED = "update_published"
+    BROADCAST_SENT = "broadcast_sent"
     REPORT_STATUS_CHANGED = "report_status_changed"
     REPORT_ANSWERED = "report_answered"

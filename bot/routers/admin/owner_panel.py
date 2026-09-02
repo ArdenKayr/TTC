@@ -1,8 +1,14 @@
-"""Панель владельца: «Логи» (по темам и периодам) и «Обновления» (рассылка).
+"""Панель владельца: «Логи», «Обновления» и «Рассылка».
 
 Логи: тема (ошибки / CRUD / контент / люди и роли / мероприятия / вузы / всё)
 → период (сутки / неделя / месяц / всё время) → последние записи. Ошибки
 берутся из error_log, остальное — из audit_log по типам действий.
+
+Обновления и рассылка устроены одинаково — текст или файл, предпросмотр,
+подтверждение кнопкой — но расходятся в назначении. Обновление это новость о
+самом боте: она ложится в архив раздела «Обновления» и получает приписку, где
+её потом найти. Рассылка — письмо владельца людям, вроде «группа переехала,
+вот что делать»: уходит как написано и нигде не оседает.
 """
 
 import json
@@ -27,12 +33,12 @@ from bot.db.models import ErrorLog, User
 from bot.db.repositories import audit_repo, user_repo
 from bot.enums import AuditAction as _A
 from bot.filters.role_filter import IsOwner
-from bot.keyboards.callback_data import LogCB, UpdatePostCB
+from bot.keyboards.callback_data import BroadcastCB, LogCB, UpdatePostCB
 from bot.keyboards.common_kb import MENU_BUTTON_TEXTS as _MENU_BUTTONS
 from bot.routers.common import send_start_screen
-from bot.services import content_service, input_guard, update_service
+from bot.services import broadcast_service, content_service, input_guard, update_service
 from bot.services.error_service import format_person
-from bot.states.content_states import UpdatePostForm
+from bot.states.content_states import BroadcastForm, UpdatePostForm
 
 router = Router(name="owner_panel")
 router.message.filter(IsOwner())
@@ -52,7 +58,7 @@ LOG_CATS: dict[str, tuple[str, tuple[str, ...] | None]] = {
     ),
     "content": (
         "📄 Контент и сценарии",
-        (_A.CONTENT_UPDATED.value, _A.UPDATE_PUBLISHED.value),
+        (_A.CONTENT_UPDATED.value, _A.UPDATE_PUBLISHED.value, _A.BROADCAST_SENT.value),
     ),
     "people": (
         "👥 Люди и роли",
@@ -386,3 +392,140 @@ async def update_unexpected(message: Message, state: FSMContext) -> None:
         return
     await message.answer(input_guard.form_explain(message, files_ok=True))
     await message.answer(texts.UPD_PROMPT)
+
+
+# --- Рассылка ---
+
+
+def _broadcast_kb(*, confirm: bool) -> InlineKeyboardMarkup:
+    """Кнопки под сообщением: до предпросмотра — только отмена, после — обе."""
+    cancel = InlineKeyboardButton(
+        text=texts.BTN.CONTENT_CANCEL, callback_data=BroadcastCB(action="cancel").pack()
+    )
+    if not confirm:
+        return InlineKeyboardMarkup(inline_keyboard=[[cancel]])
+    send = InlineKeyboardButton(
+        text=texts.BTN.BCAST_SEND, callback_data=BroadcastCB(action="send").pack()
+    )
+    return InlineKeyboardMarkup(inline_keyboard=[[send, cancel]])
+
+
+@router.message(_PRIVATE, StateFilter(None), F.text == texts.BTN.ADMIN_PANEL_BROADCAST)
+async def broadcast_start(message: Message, state: FSMContext) -> None:
+    await state.set_state(BroadcastForm.waiting)
+    await message.answer(
+        texts.BCAST_PROMPT.format(updates=texts.BTN.ADMIN_PANEL_UPDATES),
+        reply_markup=_broadcast_kb(confirm=False),
+    )
+
+
+@router.message(StateFilter(BroadcastForm), F.text.in_(_MENU_BUTTONS))
+async def broadcast_menu_pressed(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.answer(texts.BCAST_CANCELLED)
+
+
+@router.message(StateFilter(BroadcastForm), CommandStart())
+async def broadcast_start_over(
+    message: Message, session: AsyncSession, state: FSMContext, db_user: User | None
+) -> None:
+    await state.clear()
+    await send_start_screen(message, session, db_user)
+
+
+async def _show_broadcast_preview(message: Message, state: FSMContext) -> None:
+    """Показывает письмо ровно таким, каким его получат люди.
+
+    Рассылку уже не отозвать, поэтому увидеть её глазами до отправки важнее,
+    чем сэкономить одно нажатие.
+    """
+    data = await state.get_data()
+    await message.answer(texts.BCAST_PREVIEW)
+    if data.get("file_id"):
+        send = (
+            message.answer_photo
+            if data.get("file_type") == "photo"
+            else message.answer_document
+        )
+        await send(data["file_id"], caption=data["text"][:1024])
+    else:
+        await message.answer(data["text"])
+    await state.set_state(BroadcastForm.confirm)
+    await message.answer(texts.BCAST_CONFIRM, reply_markup=_broadcast_kb(confirm=True))
+
+
+@router.message(BroadcastForm.waiting, F.photo)
+async def broadcast_photo(message: Message, state: FSMContext) -> None:
+    await state.update_data(
+        text=content_service.formatted_text(message) or "",
+        file_id=message.photo[-1].file_id,
+        file_type="photo",
+    )
+    await _show_broadcast_preview(message, state)
+
+
+@router.message(BroadcastForm.waiting, F.document)
+async def broadcast_document(message: Message, state: FSMContext) -> None:
+    await state.update_data(
+        text=content_service.formatted_text(message) or "",
+        file_id=message.document.file_id,
+        file_type="document",
+    )
+    await _show_broadcast_preview(message, state)
+
+
+@router.message(BroadcastForm.waiting, F.text, ~F.text.startswith("/"))
+async def broadcast_text(message: Message, state: FSMContext) -> None:
+    await state.update_data(
+        text=content_service.formatted_text(message), file_id=None, file_type=None
+    )
+    await _show_broadcast_preview(message, state)
+
+
+@router.callback_query(BroadcastCB.filter())
+async def cb_broadcast_action(
+    callback: CallbackQuery,
+    callback_data: BroadcastCB,
+    session: AsyncSession,
+    state: FSMContext,
+    db_user: User,
+) -> None:
+    if callback_data.action == "cancel":
+        await state.clear()
+        await callback.message.edit_text(texts.BCAST_CANCELLED)
+        await callback.answer()
+        return
+    if await state.get_state() != BroadcastForm.confirm.state:
+        await callback.answer()
+        return
+    data = await state.get_data()
+    await state.clear()
+    await callback.message.edit_reply_markup(reply_markup=None)
+    # Нажатие подтверждаем сразу: рассылка идёт с паузами между письмами и на
+    # полусотне человек занимает секунды, а на большем — заметно дольше.
+    await callback.answer()
+    delivered, total = await broadcast_service.broadcast(
+        session,
+        callback.bot,
+        db_user,
+        data["text"],
+        data.get("file_id"),
+        data.get("file_type"),
+    )
+    await callback.message.answer(
+        texts.BCAST_DONE.format(delivered=delivered, total=total)
+    )
+
+
+@router.message(StateFilter(BroadcastForm))
+async def broadcast_unexpected(message: Message, state: FSMContext) -> None:
+    """Ответ на то, что шаг принять не может. Стоит последним в роутере."""
+    if await state.get_state() == BroadcastForm.confirm.state:
+        await message.answer(
+            texts.BCAST_CONFIRM_RETRY.format(
+                send=texts.BTN.BCAST_SEND, cancel=texts.BTN.CONTENT_CANCEL
+            )
+        )
+        return
+    await message.answer(input_guard.form_explain(message, files_ok=True))
+    await message.answer(texts.BCAST_PROMPT.format(updates=texts.BTN.ADMIN_PANEL_UPDATES))

@@ -185,6 +185,10 @@ class UpdatePostCB(CallbackData, prefix="oupd"):
     action: str  # send | cancel
 
 
+class BroadcastCB(CallbackData, prefix="obcast"):
+    action: str  # send | cancel
+
+
 class ReportCB(CallbackData, prefix="rep"):
     """Кнопки под карточкой репорта у админов."""
 

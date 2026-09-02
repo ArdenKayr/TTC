@@ -17,3 +17,8 @@ class CrudForm(StatesGroup):
 class UpdatePostForm(StatesGroup):
     waiting = State()  # ожидание текста/файла обновления
     confirm = State()  # подтверждение рассылки (data: text, file_id, file_type)
+
+
+class BroadcastForm(StatesGroup):
+    waiting = State()  # ожидание текста/файла письма всем
+    confirm = State()  # подтверждение рассылки (data: text, file_id, file_type)

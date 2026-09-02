@@ -2,25 +2,21 @@
 зарегистрированным и встаёт сверху раздела «Информация → Обновления»
 (старое содержимое остаётся ниже как архив, с обрезкой по длине)."""
 
-import asyncio
 import logging
 from datetime import datetime, timezone
 
 from aiogram import Bot
-from aiogram.exceptions import TelegramAPIError
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import texts
 from bot.db.models import User
 from bot.db.repositories import audit_repo, content_repo
-from bot.enums import AuditAction, UserRole
-from bot.services import content_service
+from bot.enums import AuditAction
+from bot.services import broadcast_service
 
 logger = logging.getLogger(__name__)
 
 _ARCHIVE_LIMIT = 3800  # чтобы раздел «Обновления» всегда влезал в одно сообщение
-_SEND_PAUSE = 0.05  # пауза между личками, чтобы не упереться во флуд-лимит Telegram
 
 
 def build_entry(text: str) -> str:
@@ -71,24 +67,7 @@ async def publish_update(
     )
     await session.commit()
 
-    tg_ids = list(
-        await session.scalars(select(User.tg_id).where(User.current_role != UserRole.BANNED))
-    )
+    tg_ids = await broadcast_service.recipients(session)
     message = build_broadcast(entry)
-    delivered = 0
-    for tg_id in tg_ids:
-        try:
-            if file_id is not None:
-                send = bot.send_photo if file_type == "photo" else bot.send_document
-                if len(message) <= content_service.CAPTION_LIMIT:
-                    await send(tg_id, file_id, caption=message)
-                else:
-                    await send(tg_id, file_id)
-                    await bot.send_message(tg_id, message)
-            else:
-                await bot.send_message(tg_id, message)
-            delivered += 1
-        except TelegramAPIError as e:
-            logger.warning("Update broadcast: failed to DM %s: %s", tg_id, e)
-        await asyncio.sleep(_SEND_PAUSE)
+    delivered = await broadcast_service.send_to_all(bot, tg_ids, message, file_id, file_type)
     return delivered, len(tg_ids)
