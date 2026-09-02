@@ -73,7 +73,7 @@ def _ban(monkeypatch, error: Exception) -> str:
         async def ban_chat_member(self, chat_id, tg_id):
             raise error
 
-    monkeypatch.setattr(role_service.settings, "group_chat_id", -1004334303503)
+    monkeypatch.setattr(role_service.settings, "group_chat_id", -1004358911617)
     monkeypatch.setattr(role_service.error_service, "report_issue", fake_report_issue)
     monkeypatch.setattr(role_service.audit_repo, "add", fake_add)
     monkeypatch.setattr(role_service.scenario_service, "dm", fake_dm)
