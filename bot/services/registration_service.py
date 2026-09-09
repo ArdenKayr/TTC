@@ -149,6 +149,13 @@ async def submit_request(
     session.add(request)
     await session.flush()
 
+    # Заявка фиксируется в базе ДО того, как бот пойдёт в Telegram. Порядок
+    # здесь не косметика: раньше карточка уходила внутри незавершённой
+    # транзакции, и отказ Telegram (упёрлись в лимит сообщений в группу, чат
+    # недоступен) откатывал всё — анкеты не оставалось вовсе, человек видел
+    # ошибку вместо принятой заявки. Записали — и только потом рассказываем.
+    await session.commit()
+
     if university_request is not None:
         # Lazy import: university_service импортирует этот модуль на уровне модуля.
         from bot.services import university_service
@@ -157,20 +164,24 @@ async def submit_request(
             bot,
             university_service.render_request_card(university_request),
             university_request_review_kb(university_request.request_id),
+            source="Регистрация: заявка на вуз",
+            tg_id=applicant.id,
         )
     else:
         await send_registration_card(session, bot, request, university_line=university_line)
-    await session.commit()
     return request
 
 
-async def send_registration_card(
+async def render_registration_card(
     session: AsyncSession,
-    bot: Bot,
     request: RegistrationRequest,
     university_line: str | None = None,
-) -> None:
-    """Отправляет карточку заявки в топик «Заявки».
+) -> str:
+    """Собирает текст карточки заявки — без отправки.
+
+    Отдельно от отправки, потому что одну и ту же карточку бот показывает в
+    двух местах: сразу в топике «Заявки» и потом, когда угодно, в очереди
+    разбора («🛠 Админство» → «📥 Заявки»). Текст обязан быть одним и тем же.
 
     university_line — готовая строка о вузе (например, с пометкой «добавлен по
     заявке» или «отклонён»). Если не передана — берётся название по
@@ -198,8 +209,22 @@ async def send_registration_card(
     header = texts.REG_CARD_HEADER.format(
         attempt=request.attempt_number, username=escape(username), tg_id=request.tg_id
     )
+    return header + "\n" + "\n".join(lines)
+
+
+async def send_registration_card(
+    session: AsyncSession,
+    bot: Bot,
+    request: RegistrationRequest,
+    university_line: str | None = None,
+) -> None:
+    """Отправляет карточку заявки в топик «Заявки»."""
     await notification_service.send_admin_card(
-        bot, header + "\n" + "\n".join(lines), registration_review_kb(request.request_id)
+        bot,
+        await render_registration_card(session, request, university_line),
+        registration_review_kb(request.request_id),
+        source="Регистрация: карточка заявки",
+        tg_id=request.tg_id,
     )
 
 

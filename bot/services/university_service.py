@@ -76,13 +76,16 @@ async def submit_alias_suggestion(
         alias_text=alias_text,
     )
     session.add(suggestion)
-    await session.flush()
+    # Сначала запись, потом рассказ: отказ Telegram не должен отменять то,
+    # что человек уже прислал (см. тот же порядок в registration_service).
+    await session.commit()
     await notification_service.send_admin_card(
         bot,
         render_alias_card(suggestion, university.canonical_name),
         alias_suggestion_review_kb(suggestion.suggestion_id),
+        source="Вузы: вариант поиска",
+        tg_id=tg_id,
     )
-    await session.commit()
     return suggestion
 
 

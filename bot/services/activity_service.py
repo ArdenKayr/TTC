@@ -71,11 +71,25 @@ def act_details(
     return lines
 
 
-def build_act_card(author: User, request: ActivityRequest) -> str:
+def author_lines(author: User | None) -> tuple[str, str]:
+    """Имя и ник автора для карточки. Автора могли удалить из базы.
+
+    Пустой автор — не выдумка: записи людей удаляются со ссылкой
+    `ondelete="SET NULL"`, а заявка при этом остаётся жить. Раньше такая
+    заявка роняла отрисовку карточки; в очереди разбора она уронила бы весь
+    список сразу, поэтому подпись здесь всегда есть.
+    """
+    if author is None:
+        return escape(texts.USER_DELETED_LABEL), "—"
     username = f"@{author.username}" if author.username else f"id {author.tg_id}"
+    return escape(author.display_name), escape(username)
+
+
+def build_act_card(author: User | None, request: ActivityRequest) -> str:
+    name, username = author_lines(author)
     return texts.ACT_CARD.format(
-        name=escape(author.display_name),
-        username=escape(username),
+        name=name,
+        username=username,
         title=escape(request.title),
         description=escape(request.description),
         details=act_details(
@@ -94,13 +108,13 @@ def anonymity_line(is_anonymous: bool) -> str:
 
 
 def build_vote_card(
-    author: User, question: str, options: list[str], is_anonymous: bool
+    author: User | None, question: str, options: list[str], is_anonymous: bool
 ) -> str:
-    username = f"@{author.username}" if author.username else f"id {author.tg_id}"
+    name, username = author_lines(author)
     rows = "\n".join(texts.VOTE_OPTION_ROW.format(option=escape(option)) for option in options)
     return texts.VOTE_CARD.format(
-        name=escape(author.display_name),
-        username=escape(username),
+        name=name,
+        username=username,
         question=escape(question),
         options=rows,
         anon=anonymity_line(is_anonymous),

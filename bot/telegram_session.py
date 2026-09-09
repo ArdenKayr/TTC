@@ -20,6 +20,19 @@
 
 Опрос новых событий под эти правила не попадает: у него свой, намеренно
 долгий таймаут — так устроен long polling, и укорачивать его нельзя.
+
+Вторая беда живёт здесь же — **флуд-лимит**. Telegram не даёт слать больше
+30 сообщений в секунду вообще и больше 20 в минуту в одну группу; упёршись,
+он отвечает 429 и сам называет, сколько секунд подождать. Библиотека
+превращает этот ответ в исключение, и до 09.09.2026 оно означало для бота
+провал операции: карточка заявки не уходила, рассылка теряла адресата.
+
+Между тем 429 — не поломка, а расписание: запрос отвергнут, до людей ничего
+не дошло, и повторить его через названную паузу совершенно безопасно (в
+отличие от оборванной связи, где сообщение могло и дойти). Поэтому бот ждёт
+столько, сколько попросили, и повторяет. Расчёт на тысячу регистраций
+показал, что без этого наплыв упирается в лимит одного чата на первой же
+сотне заявок.
 """
 
 import asyncio
@@ -30,7 +43,7 @@ import time
 from aiogram import Bot
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.client.session.middlewares.base import NextRequestMiddlewareType
-from aiogram.exceptions import TelegramNetworkError
+from aiogram.exceptions import TelegramNetworkError, TelegramRetryAfter
 from aiogram.methods import Response, TelegramMethod
 from aiogram.methods.base import TelegramType
 from aiohttp import ClientTimeout
@@ -41,6 +54,11 @@ CONNECT_TIMEOUT = 5.0  # сколько ждём установки соедин
 TOTAL_TIMEOUT = 20.0  # сколько ждём весь запрос целиком
 RETRIES = 3  # столько раз пробуем, если не дозвонились
 RETRY_PAUSE = 1.0  # пауза между попытками
+# Дольше этого ждать разрешения не ждём: обработчик всё это время стоит, а
+# человек по ту сторону смотрит на молчащего бота. Обычная пауза при флуде —
+# секунды; десятки минут означают, что бот упёрся во что-то всерьёз, и это
+# должно попасть в журнал ошибок, а не тихо стоять.
+FLOOD_WAIT_CAP = 60.0
 
 FAMILIES = {
     "auto": socket.AF_UNSPEC,  # как решит система: сначала IPv6, потом IPv4
@@ -61,21 +79,57 @@ def looks_like_no_connection(elapsed: float) -> bool:
     return elapsed < CONNECT_TIMEOUT + 1.0
 
 
-async def retry_on_lost_connection(
+def flood_pause(retry_after: float) -> float | None:
+    """Сколько ждать по требованию Telegram. None — если ждать столько нельзя.
+
+    Пауза берётся из самого ответа: Telegram называет её точно, и угадывать
+    тут нечего. Отказываемся ждать только неприлично долго — тогда честнее
+    отдать ошибку в журнал, чем молча держать человека в неведении минутами.
+    """
+    if retry_after > FLOOD_WAIT_CAP:
+        return None
+    # Секунда сверху: собственный счётчик Telegram и наши часы идут не в такт,
+    # и попытка ровно в названную секунду нередко получает второй отказ.
+    return retry_after + 1.0
+
+
+async def retry_when_safe(
     make_request: NextRequestMiddlewareType[TelegramType],
     bot: Bot,
     method: TelegramMethod[TelegramType],
 ) -> Response[TelegramType]:
-    """Повторяет запрос, если связь пропала до того, как он ушёл.
+    """Повторяет запрос там, где повтор заведомо никому не навредит.
 
-    Провалы здесь короткие — секунды, — поэтому вторая попытка обычно
-    проходит. Дублировать чужие сообщения при этом нельзя, отсюда и
-    осторожность: повторяем только заведомо не дошедшее.
+    Два разных случая, и оба кончаются одинаково — второй попыткой:
+
+    * **связь пропала до того, как запрос ушёл.** Провалы здесь короткие —
+      секунды, — поэтому вторая попытка обычно проходит. Дублировать чужие
+      сообщения при этом нельзя, отсюда осторожность: повторяем только
+      заведомо не дошедшее (см. `looks_like_no_connection`);
+    * **упёрлись во флуд-лимит.** Тут сомнений нет вовсе: 429 означает, что
+      запрос отвергнут целиком и до людей ничего не дошло. Ждём ровно
+      столько, сколько назвал Telegram, и пробуем снова.
+
+    Все прочие отказы Telegram («нет прав», «чат не найден») повторять
+    бессмысленно — они пролетают наверх нетронутыми.
     """
     for attempt in range(1, RETRIES + 1):
         started = time.monotonic()
         try:
             return await make_request(bot, method)
+        except TelegramRetryAfter as error:
+            pause = flood_pause(error.retry_after)
+            if attempt == RETRIES or pause is None:
+                raise
+            logger.warning(
+                "Telegram просит подождать %s с (%s, попытка %d из %d): %s. Жду и повторяю.",
+                error.retry_after,
+                method.__api_method__,
+                attempt,
+                RETRIES,
+                error,
+            )
+            await asyncio.sleep(pause)
         except TelegramNetworkError as error:
             elapsed = time.monotonic() - started
             if attempt == RETRIES or not looks_like_no_connection(elapsed):
@@ -111,7 +165,7 @@ class TelegramSession(AiohttpSession):
         # А раздельные сроки — отдельно на соединение, отдельно на весь запрос —
         # подставляются в каждый обычный запрос ниже, уже для самой aiohttp.
         self.request_timeout = ClientTimeout(total=TOTAL_TIMEOUT, sock_connect=CONNECT_TIMEOUT)
-        self.middleware(retry_on_lost_connection)
+        self.middleware(retry_when_safe)
         logger.info(
             "Связь с Telegram: протокол %s, соединение до %.0f с, запрос до %.0f с, попыток %d.",
             ip_family,

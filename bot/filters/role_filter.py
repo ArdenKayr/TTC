@@ -47,6 +47,33 @@ class HasPerm(BaseFilter):
         return await permission_service.has_permission(session, db_user, self.module)
 
 
+class HasAnyPerm(BaseFilter):
+    """Пропускает того, кому включён хотя бы один из перечисленных модулей.
+
+    Нужен разделам, которые собирают несколько видов работы под одной кнопкой:
+    очередь заявок открыта и тому, кто разбирает только регистрации, и тому,
+    кто занят только вузами, — а внутри каждый видит своё.
+    """
+
+    def __init__(self, *modules: PermissionModule) -> None:
+        self.modules = modules
+
+    async def __call__(
+        self,
+        event: TelegramObject,
+        db_user: User | None = None,
+        session: AsyncSession | None = None,
+    ) -> bool:
+        if db_user is None or session is None:
+            return False
+        from bot.services import permission_service
+
+        for module in self.modules:
+            if await permission_service.has_permission(session, db_user, module):
+                return True
+        return False
+
+
 class IsOrganizerOrAbove(BaseFilter):
     async def __call__(self, event: TelegramObject, db_user: User | None = None) -> bool:
         return db_user is not None and (

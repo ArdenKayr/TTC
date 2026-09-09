@@ -7,6 +7,7 @@ from bot.keyboards.callback_data import (
     AliasSugCB,
     ContentActionCB,
     ContentSlotCB,
+    QueueCB,
     RegReviewCB,
     ReviewEditCB,
     UniReqCB,
@@ -34,6 +35,20 @@ def content_edit_kb() -> InlineKeyboardMarkup:
                     callback_data=ContentActionCB(action="cancel").pack(),
                 ),
             ]
+        ]
+    )
+
+
+def queue_kb(kinds: list[tuple[str, str]]) -> InlineKeyboardMarkup:
+    """Кнопки видов заявок в очереди разбора: ключ вида и его подпись.
+
+    Подписи и ключи приходят готовыми, чтобы клавиатура не тянула за собой
+    сервис очереди: тот сам собран из клавиатур, и вышло бы кольцо.
+    """
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=title, callback_data=QueueCB(kind=key).pack())]
+            for key, title in kinds
         ]
     )
 

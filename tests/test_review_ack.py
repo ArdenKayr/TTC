@@ -35,7 +35,10 @@ class _Card:
 
     def __init__(self, log: list[str]) -> None:
         self.log = log
-        self.html_text = "Заявка на вступление"
+        # Карточка регистрации — обычное текстовое сообщение, без обложки.
+        self.text = "Заявка на вступление"
+        self.caption = None
+        self.html_text = self.text
         self.edited: str | None = None
         self.markup: object = "кнопки на месте"
         self.replies: list[str] = []

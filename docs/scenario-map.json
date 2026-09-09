@@ -2666,6 +2666,214 @@
             "superadmin",
             "owner"
           ]
+        },
+        {
+          "id": "appl_queue",
+          "trigger_kind": "reply_button",
+          "trigger_ref": "BTN.ADMIN_PANEL_QUEUE",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/admin/queue.py:btn_queue",
+          "does": "Считает в базе все заявки, которые ещё ждут решения, — но только тех видов, которые открыты этому админу его модулями прав. Смотрит именно в базу, а не на сообщения в админ-чате: карточка могла уехать вверх, быть удалённой или вовсе не дойти.",
+          "shows": "Список «сколько чего ждёт»: по строке на вид заявок и кнопка на каждый вид. Если разбирать нечего, бот так и говорит — очередь пуста.",
+          "next": [
+            "appl_queue_empty",
+            "appl_queue_reg",
+            "appl_queue_act",
+            "appl_queue_vote",
+            "appl_queue_uni",
+            "appl_queue_alias"
+          ],
+          "db_reads": [
+            "registration_requests",
+            "activity_requests",
+            "vote_requests",
+            "university_requests",
+            "alias_suggestions",
+            "permission_groups",
+            "users"
+          ]
+        },
+        {
+          "id": "appl_queue_empty",
+          "trigger_kind": "auto",
+          "trigger_text": "в очереди нет ни одной заявки",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/admin/queue.py:btn_queue",
+          "does": "Ничего: разбирать нечего.",
+          "shows": "Строку «Неразобранных заявок нет — очередь пуста».",
+          "db_reads": [
+            "registration_requests",
+            "activity_requests",
+            "vote_requests"
+          ]
+        },
+        {
+          "id": "appl_queue_reg",
+          "trigger_kind": "inline_button",
+          "trigger_ref": "BTN.QUEUE_REG",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "perm_module": "registration",
+          "handler": "bot/routers/admin/queue.py:cb_queue_kind",
+          "does": "Достаёт до десяти самых давних заявок на вступление и присылает их заново — свежими карточками с рабочими кнопками. Заявки, которые ждут решения по новому вузу, в очередь не попадают: их черёд наступит после решения по вузу.",
+          "shows": "Карточки заявок в личке — такие же, как в админ-чате, — и в конце строка «показаны столько-то из стольких-то».",
+          "next": [
+            "appl_reg_approve",
+            "appl_reg_reject",
+            "appl_queue_kind_empty"
+          ],
+          "db_reads": [
+            "registration_requests",
+            "university_requests",
+            "universities",
+            "users"
+          ]
+        },
+        {
+          "id": "appl_queue_act",
+          "trigger_kind": "inline_button",
+          "trigger_ref": "BTN.QUEUE_ACT",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "perm_module": "activities",
+          "handler": "bot/routers/admin/queue.py:cb_queue_kind",
+          "does": "Присылает до десяти самых давних заявок на мероприятия — с обложкой и теми же кнопками решения. Ради этого раздел и появился: мероприятие можно спокойно отложить и разобрать на следующий день.",
+          "shows": "Карточки мероприятий с обложкой и кнопками «✅ Принять» и «❌ Отклонить».",
+          "next": [
+            "mod_act_approve",
+            "mod_act_reject",
+            "appl_queue_kind_empty"
+          ],
+          "db_reads": [
+            "activity_requests",
+            "users"
+          ]
+        },
+        {
+          "id": "appl_queue_vote",
+          "trigger_kind": "inline_button",
+          "trigger_ref": "BTN.QUEUE_VOTE",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "perm_module": "activities",
+          "handler": "bot/routers/admin/queue.py:cb_queue_kind",
+          "does": "Присылает до десяти самых давних заявок на голосования.",
+          "shows": "Карточки голосований с вопросом, вариантами ответа и кнопками решения.",
+          "next": [
+            "mod_vote_approve",
+            "mod_vote_reject",
+            "appl_queue_kind_empty"
+          ],
+          "db_reads": [
+            "vote_requests",
+            "users"
+          ]
+        },
+        {
+          "id": "appl_queue_uni",
+          "trigger_kind": "inline_button",
+          "trigger_ref": "BTN.QUEUE_UNI",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "perm_module": "universities",
+          "handler": "bot/routers/admin/queue.py:cb_queue_kind",
+          "does": "Присылает до десяти самых давних заявок на добавление вуза.",
+          "shows": "Карточки заявок на вуз с названием, вариантами поиска и ссылкой.",
+          "next": [
+            "appl_uni_approve",
+            "appl_uni_reject",
+            "appl_uni_edit",
+            "appl_queue_kind_empty"
+          ],
+          "db_reads": [
+            "university_requests"
+          ]
+        },
+        {
+          "id": "appl_queue_alias",
+          "trigger_kind": "inline_button",
+          "trigger_ref": "BTN.QUEUE_ALIAS",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "perm_module": "universities",
+          "handler": "bot/routers/admin/queue.py:cb_queue_kind",
+          "does": "Присылает до десяти самых давних предложенных вариантов поиска вузов.",
+          "shows": "Карточки предложений: какой вуз, какой вариант и кто предложил.",
+          "next": [
+            "appl_alias_approve",
+            "appl_alias_reject",
+            "appl_alias_edit",
+            "appl_queue_kind_empty"
+          ],
+          "db_reads": [
+            "alias_suggestions",
+            "universities"
+          ]
+        },
+        {
+          "id": "appl_queue_kind_empty",
+          "trigger_kind": "auto",
+          "trigger_text": "заявки этого вида успели разобрать",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/admin/queue.py:cb_queue_kind",
+          "does": "Проверяет очередь ещё раз в момент нажатия: пока сводка висела в чате, заявки мог разобрать другой админ.",
+          "shows": "Всплывающее окно «Здесь уже пусто: заявки этого вида разобраны».",
+          "db_reads": [
+            "registration_requests",
+            "activity_requests",
+            "vote_requests"
+          ]
+        },
+        {
+          "id": "appl_queue_denied",
+          "trigger_kind": "auto",
+          "trigger_text": "нажатие по виду заявок без прав на него",
+          "where": "dm",
+          "roles": [
+            "any"
+          ],
+          "handler": "bot/routers/admin/queue.py:cb_no_permission",
+          "does": "Проверяет права на конкретный вид заявок отдельно от самого раздела: в очередь пускают три разных модуля, и открытый раздел ещё не значит, что человеку открыт каждый вид внутри.",
+          "shows": "Всплывающее окно с отказом.",
+          "db_reads": [
+            "users",
+            "permission_groups"
+          ]
         }
       ]
     },

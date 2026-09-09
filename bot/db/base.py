@@ -17,5 +17,17 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=naming_convention)
 
 
-engine = create_async_engine(settings.database_url)
+# Подключения к базе берутся из пула. По умолчанию их 15 (5 + 10 запасных), и
+# на наплыве этого мало: события бот обрабатывает одновременно, а обработчик
+# держит подключение всё время своей работы — включая походы в Telegram. При
+# разборе заявок бот ходит туда трижды (ссылка, личка человеку, правка
+# карточки), и если Telegram попросил подождать, подключение стоит занятым всю
+# паузу. Кончился пул — событие ждёт `pool_timeout` и падает с ошибкой, хотя
+# ни база, ни Telegram ни при чём.
+#
+# 30 подключений на 4 ГБ памяти сервер держит спокойно: Postgres по умолчанию
+# разрешает 100, а каждое стоит несколько мегабайт.
+engine = create_async_engine(
+    settings.database_url, pool_size=10, max_overflow=20, pool_timeout=60
+)
 async_session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)

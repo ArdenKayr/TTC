@@ -176,6 +176,12 @@ class CrudCancelCB(CallbackData, prefix="crcancel"):
     pass
 
 
+class QueueCB(CallbackData, prefix="queue"):
+    """Вид заявок в очереди разбора: ключ из queue_service.KINDS."""
+
+    kind: str
+
+
 class LogCB(CallbackData, prefix="olog"):
     cat: str  # ключ категории из owner_panel.LOG_CATS; "home" = назад к темам
     days: int = -1  # -1 = ещё не выбран период; 0 = всё время

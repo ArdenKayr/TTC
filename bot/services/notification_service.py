@@ -5,10 +5,45 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import InlineKeyboardMarkup
 
+from bot import texts
 from bot.config import settings
 from bot.services.content_service import CAPTION_LIMIT
 
 logger = logging.getLogger(__name__)
+
+
+async def deliver_card(
+    bot: Bot,
+    chat_id: int | str,
+    text: str,
+    keyboard: InlineKeyboardMarkup | None = None,
+    photo_file_id: str | None = None,
+    thread: int | None = None,
+) -> None:
+    """Одна карточка в любой чат: с обложкой или без.
+
+    Кнопки решения всегда на том сообщении, где лежит текст: админ читает и
+    нажимает в одном месте. Обложка идёт подписью, если текст в неё влезает,
+    и отдельной картинкой сверху, если нет — Telegram в подпись пускает
+    только 1024 символа и молча обрезал бы остальное.
+
+    Ошибки не ловит: что делать с недоставленной карточкой, решает тот, кто
+    её отправляет, — в админ-чате и в личке админа это разные решения.
+    """
+    if photo_file_id is None:
+        await bot.send_message(chat_id, text, reply_markup=keyboard, message_thread_id=thread)
+        return
+    if len(text) <= CAPTION_LIMIT:
+        await bot.send_photo(
+            chat_id,
+            photo_file_id,
+            caption=text,
+            reply_markup=keyboard,
+            message_thread_id=thread,
+        )
+        return
+    await bot.send_photo(chat_id, photo_file_id, message_thread_id=thread)
+    await bot.send_message(chat_id, text, reply_markup=keyboard, message_thread_id=thread)
 
 
 async def send_admin_card(
@@ -16,31 +51,49 @@ async def send_admin_card(
     text: str,
     keyboard: InlineKeyboardMarkup | None = None,
     photo_file_id: str | None = None,
-) -> None:
+    *,
+    source: str = "Карточка заявки",
+    tg_id: int | None = None,
+) -> bool:
     """Карточка заявки в админ-чат. С картинкой — если заявка её принесла.
 
     Кнопки решения всегда на том сообщении, где лежит текст карточки: админ
     читает и нажимает в одном месте, а не ищет кнопки под соседней картинкой.
+
+    **Отправка не имеет права уронить подачу заявки.** Заявка к этому моменту
+    уже лежит в базе, и Telegram, отказавший в доставке карточки, ничего в
+    этом не меняет: отказать он может по причинам, к заявке отношения не
+    имеющим — упёрлись в лимит сообщений в группу (20 в минуту, а на наплыве
+    заявок это первое, во что бот упирается), чат недоступен, права отобраны.
+    Поэтому неудача записывается в журнал владельцу, а заявка остаётся
+    ждать в очереди «🛠 Админство» → «📥 Заявки», откуда её достанут руками.
+
+    Возвращает, дошла ли карточка.
     """
-    thread = settings.admin_topic_applications_id
-    if photo_file_id is None:
-        await bot.send_message(
-            settings.admin_chat_id, text, reply_markup=keyboard, message_thread_id=thread
-        )
-        return
-    if len(text) <= CAPTION_LIMIT:
-        await bot.send_photo(
+    # Локальный импорт: error_service тянет за собой пол-базы, а нужен он тут
+    # только в редкой ветке отказа.
+    from bot.services import error_service
+
+    try:
+        await deliver_card(
+            bot,
             settings.admin_chat_id,
+            text,
+            keyboard,
             photo_file_id,
-            caption=text,
-            reply_markup=keyboard,
-            message_thread_id=thread,
+            thread=settings.admin_topic_applications_id,
         )
-        return
-    await bot.send_photo(settings.admin_chat_id, photo_file_id, message_thread_id=thread)
-    await bot.send_message(
-        settings.admin_chat_id, text, reply_markup=keyboard, message_thread_id=thread
-    )
+    except TelegramAPIError as e:
+        logger.warning("Failed to send admin card (%s): %s", source, e)
+        await error_service.report_issue(
+            bot,
+            source=source,
+            tg_id=tg_id,
+            note=f"Заявка сохранена, но карточка не ушла в админ-чат: {e}. "
+            f"Разобрать её можно в «{texts.BTN.ADMIN_MODE}» → «{texts.BTN.ADMIN_PANEL_QUEUE}».",
+        )
+        return False
+    return True
 
 
 async def send_admin_report(

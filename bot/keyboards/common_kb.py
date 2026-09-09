@@ -21,6 +21,7 @@ MENU_BUTTON_TEXTS = {
     texts.BTN.ACT_NEW,
     texts.BTN.VOTE_NEW,
     texts.BTN.ADMIN_MODE,
+    texts.BTN.ADMIN_PANEL_QUEUE,
     texts.BTN.ADMIN_PANEL_USERS,
     texts.BTN.ADMIN_PANEL_CRUD,
     texts.BTN.ADMIN_PANEL_SCENARIOS,
@@ -64,6 +65,15 @@ def admin_sections(user: User, modules: set[str]) -> list[str]:
     is_full_admin = user.current_role in FULL_ADMIN_ROLES
 
     sections: list[str] = []
+    # Очередь разбора — первой: это ежедневная работа админа, всё остальное
+    # в панели он открывает изредка. Открыта каждому, кто разбирает хоть
+    # что-то из заявок; какие именно виды он там увидит, решается внутри.
+    if modules & {
+        PermissionModule.REGISTRATION.value,
+        PermissionModule.ACTIVITIES.value,
+        PermissionModule.UNIVERSITIES.value,
+    }:
+        sections.append(texts.BTN.ADMIN_PANEL_QUEUE)
     # Карточка человека: роли — суперадминам, бан и разбан — по модулю.
     if is_super or PermissionModule.MODERATION.value in modules:
         sections.append(texts.BTN.ADMIN_PANEL_USERS)

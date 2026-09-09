@@ -21,14 +21,20 @@ import asyncio
 import socket
 
 import pytest
-from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError
+from aiogram.exceptions import (
+    TelegramBadRequest,
+    TelegramNetworkError,
+    TelegramRetryAfter,
+)
 
 from bot import telegram_session
 from bot.telegram_session import (
     CONNECT_TIMEOUT,
+    FLOOD_WAIT_CAP,
     RETRIES,
     TOTAL_TIMEOUT,
     TelegramSession,
+    flood_pause,
     looks_like_no_connection,
 )
 
@@ -39,11 +45,17 @@ class _Method:
     __api_method__ = "sendMessage"
 
 
-def _run(make_request, monkeypatch) -> object:
+def _run(make_request, monkeypatch, slept: list | None = None) -> object:
     """Прогоняет запрос через повторы, не тратя на паузы настоящее время."""
     monkeypatch.setattr(telegram_session, "RETRY_PAUSE", 0)
+
+    async def fake_sleep(seconds: float) -> None:
+        if slept is not None:
+            slept.append(seconds)
+
+    monkeypatch.setattr(telegram_session.asyncio, "sleep", fake_sleep)
     return asyncio.run(
-        telegram_session.retry_on_lost_connection(make_request, bot=None, method=_Method())
+        telegram_session.retry_when_safe(make_request, bot=None, method=_Method())
     )
 
 
@@ -170,3 +182,59 @@ def test_telegram_refusals_are_not_retried(monkeypatch) -> None:
     with pytest.raises(TelegramBadRequest):
         _run(make_request, monkeypatch)
     assert len(calls) == 1
+
+
+# --- Флуд-лимит: 429 это не поломка, а названная Telegram пауза ---
+
+
+def test_flood_limit_is_waited_out(monkeypatch) -> None:
+    """Упёрлись в лимит — подождали столько, сколько попросили, и повторили.
+
+    Ровно этого не хватало на наплыве: карточки заявок идут в один чат, а в
+    одну группу Telegram пускает не больше 20 сообщений в минуту. Без
+    ожидания сотая заявка просто не доезжала до админов.
+    """
+    calls = []
+    slept: list[float] = []
+
+    async def make_request(bot, method):
+        calls.append(1)
+        if len(calls) == 1:
+            raise TelegramRetryAfter(method=None, message="Too Many Requests", retry_after=3)
+        return "карточка ушла"
+
+    assert _run(make_request, monkeypatch, slept) == "карточка ушла"
+    assert len(calls) == 2, "Повтор обязателен: запрос отвергнут, до людей ничего не дошло."
+    assert slept == [4.0], "Ждать надо названные Telegram секунды, а не свою догадку."
+
+
+def test_flood_pause_adds_a_second_of_slack() -> None:
+    """Секунда сверху: часы Telegram и наши идут не в такт."""
+    assert flood_pause(5) == 6.0
+
+
+def test_absurd_flood_pause_is_not_waited(monkeypatch) -> None:
+    """Ждать десять минут внутри нажатия нельзя — это уже случай для журнала."""
+    assert flood_pause(FLOOD_WAIT_CAP + 1) is None
+    calls = []
+
+    async def make_request(bot, method):
+        calls.append(1)
+        raise TelegramRetryAfter(method=None, message="Too Many Requests", retry_after=600)
+
+    with pytest.raises(TelegramRetryAfter):
+        _run(make_request, monkeypatch)
+    assert len(calls) == 1, "Столько ждать бессмысленно — отдаём ошибку сразу."
+
+
+def test_flood_gives_up_after_all_attempts(monkeypatch) -> None:
+    """Лимит не отпускает — ошибка всё-таки доходит до журнала, а не теряется."""
+    calls = []
+
+    async def make_request(bot, method):
+        calls.append(1)
+        raise TelegramRetryAfter(method=None, message="Too Many Requests", retry_after=1)
+
+    with pytest.raises(TelegramRetryAfter):
+        _run(make_request, monkeypatch)
+    assert len(calls) == RETRIES
