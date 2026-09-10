@@ -11,10 +11,16 @@ from bot import texts
 from bot.config import settings
 from bot.db.models import RegistrationRequest, UniversityRequest, User
 from bot.db.repositories import audit_repo, registration_repo, university_repo, user_repo
-from bot.enums import AuditAction, RequestStatus, UserRole
+from bot.enums import ActorType, AuditAction, RequestStatus, UserRole
 from bot.keyboards.admin_kb import registration_review_kb, university_request_review_kb
 from bot.keyboards.common_kb import main_menu_kb
-from bot.services import error_service, notification_service, scenario_service
+from bot.services import (
+    autoapprove_service,
+    error_service,
+    notification_service,
+    scenario_service,
+    settings_service,
+)
 from bot.services.throttle import rejection_timeout_minutes
 
 # Ссылка одноразовая и живёт недолго: она именная, по ней входит один человек.
@@ -168,7 +174,7 @@ async def submit_request(
             tg_id=applicant.id,
         )
     else:
-        await send_registration_card(session, bot, request, university_line=university_line)
+        await decide_or_ask(session, bot, request, university_line=university_line)
     return request
 
 
@@ -217,25 +223,84 @@ async def send_registration_card(
     bot: Bot,
     request: RegistrationRequest,
     university_line: str | None = None,
+    *,
+    note: str = "",
+    with_buttons: bool = True,
 ) -> None:
-    """Отправляет карточку заявки в топик «Заявки»."""
+    """Отправляет карточку заявки в топик «Заявки».
+
+    `note` — строка под карточкой: чем кончился автоприём. `with_buttons=False`
+    у заявки, которую бот уже принял сам: решать там нечего, а живые кнопки
+    под решённой заявкой только сбивают с толку.
+    """
+    text = await render_registration_card(session, request, university_line)
+    if note:
+        text += f"\n\n{note}"
     await notification_service.send_admin_card(
         bot,
-        await render_registration_card(session, request, university_line),
-        registration_review_kb(request.request_id),
+        text,
+        registration_review_kb(request.request_id) if with_buttons else None,
         source="Регистрация: карточка заявки",
         tg_id=request.tg_id,
     )
 
 
+async def decide_or_ask(
+    session: AsyncSession,
+    bot: Bot,
+    request: RegistrationRequest,
+    university_line: str | None = None,
+) -> bool:
+    """Принять заявку самим или отдать её админам. Возвращает: приняли ли сами.
+
+    Автоприём выключен — карточка уходит админам как обычно, ничего не
+    меняется. Включён — заявка проверяется по правилам (`autoapprove_service`),
+    и админы всё равно получают карточку: либо с пометкой «принята
+    автоматически» и без кнопок, либо с причиной, по которой правила её не
+    пропустили, и с кнопками. Молча мимо админов не проходит ничто.
+
+    Если автоприём не сработал технически (не вышло отметить заявку принятой,
+    её уже кто-то разобрал), решение возвращается людям — с рабочими кнопками.
+    """
+    if not await settings_service.is_on(session, settings_service.AUTO_APPROVE):
+        await send_registration_card(session, bot, request, university_line)
+        return False
+
+    verdict = autoapprove_service.check(request, _utcnow().date())
+    if not verdict.ok:
+        await send_registration_card(
+            session,
+            bot,
+            request,
+            university_line,
+            note=texts.CARD_AUTO_SKIPPED.format(reason=verdict.reason),
+        )
+        return False
+
+    ok, note = await approve(session, bot, request.request_id, admin=None)
+    if not ok:
+        await send_registration_card(session, bot, request, university_line)
+        return False
+    await send_registration_card(
+        session, bot, request, university_line, note=note, with_buttons=False
+    )
+    return True
+
+
 async def approve(
-    session: AsyncSession, bot: Bot, request_id: uuid.UUID, admin: User
+    session: AsyncSession, bot: Bot, request_id: uuid.UUID, admin: User | None
 ) -> tuple[bool, str]:
+    """Принимает заявку. `admin=None` — приняли по правилам автоприёма, без человека.
+
+    Дальше всё одинаково: человек получает ту же личку с той же ссылкой, а в
+    журнале остаётся запись — с именем админа или с пометкой, что решал бот.
+    """
     request = await registration_repo.get(session, request_id)
     if request is None:
         return False, texts.REVIEW_NOT_FOUND
+    actor_tg_id = admin.tg_id if admin is not None else None
     claimed = await registration_repo.try_mark_processed(
-        session, request_id, RequestStatus.APPROVED, admin.tg_id, _utcnow()
+        session, request_id, RequestStatus.APPROVED, actor_tg_id, _utcnow()
     )
     if not claimed:
         return False, texts.REVIEW_ALREADY_PROCESSED
@@ -286,15 +351,20 @@ async def approve(
 
     await audit_repo.add(
         session,
-        AuditAction.REGISTRATION_APPROVED,
-        actor_tg_id=admin.tg_id,
+        AuditAction.REGISTRATION_APPROVED if admin else AuditAction.REGISTRATION_AUTO_APPROVED,
+        actor_tg_id=actor_tg_id,
+        actor_type=ActorType.ADMIN if admin else ActorType.SYSTEM,
         target_tg_id=request.tg_id,
         target_entity_type="registration_request",
         target_entity_id=str(request_id),
     )
     await session.commit()
 
-    result = texts.CARD_APPROVED.format(admin=admin.display_name)
+    result = (
+        texts.CARD_APPROVED.format(admin=admin.display_name)
+        if admin is not None
+        else texts.CARD_APPROVED_AUTO
+    )
     if notes:
         result += "\n" + "\n".join(notes)
     return True, result

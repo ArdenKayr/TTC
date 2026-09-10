@@ -1,4 +1,4 @@
-"""Панель владельца: «Логи», «Обновления» и «Рассылка».
+"""Панель владельца: «Логи», «Обновления», «Рассылка» и «Автоприём».
 
 Логи: тема (ошибки / CRUD / контент / люди и роли / мероприятия / вузы / всё)
 → период (сутки / неделя / месяц / всё время) → последние записи. Ошибки
@@ -9,6 +9,10 @@
 самом боте: она ложится в архив раздела «Обновления» и получает приписку, где
 её потом найти. Рассылка — письмо владельца людям, вроде «группа переехала,
 вот что делать»: уходит как написано и нигде не оседает.
+
+Автоприём — единственный переключатель поведения бота, живущий не в `.env`,
+а в базе: решение «пускать подходящих самим» принимается в разгар наплыва и
+не должно требовать доступа к серверу.
 """
 
 import json
@@ -33,10 +37,17 @@ from bot.db.models import ErrorLog, User
 from bot.db.repositories import audit_repo, user_repo
 from bot.enums import AuditAction as _A
 from bot.filters.role_filter import IsOwner
-from bot.keyboards.callback_data import BroadcastCB, LogCB, UpdatePostCB
+from bot.keyboards.callback_data import AutoApproveCB, BroadcastCB, LogCB, UpdatePostCB
 from bot.keyboards.common_kb import MENU_BUTTON_TEXTS as _MENU_BUTTONS
 from bot.routers.common import send_start_screen
-from bot.services import broadcast_service, content_service, input_guard, update_service
+from bot.services import (
+    autoapprove_service,
+    broadcast_service,
+    content_service,
+    input_guard,
+    settings_service,
+    update_service,
+)
 from bot.services.error_service import format_person
 from bot.states.content_states import BroadcastForm, UpdatePostForm
 
@@ -58,12 +69,18 @@ LOG_CATS: dict[str, tuple[str, tuple[str, ...] | None]] = {
     ),
     "content": (
         "📄 Контент и сценарии",
-        (_A.CONTENT_UPDATED.value, _A.UPDATE_PUBLISHED.value, _A.BROADCAST_SENT.value),
+        (
+            _A.CONTENT_UPDATED.value,
+            _A.UPDATE_PUBLISHED.value,
+            _A.BROADCAST_SENT.value,
+            _A.SETTING_CHANGED.value,
+        ),
     ),
     "people": (
         "👥 Люди и роли",
         (
             _A.REGISTRATION_APPROVED.value,
+            _A.REGISTRATION_AUTO_APPROVED.value,
             _A.REGISTRATION_REJECTED.value,
             _A.ROLE_CHANGED.value,
             _A.USER_BANNED.value,
@@ -529,3 +546,42 @@ async def broadcast_unexpected(message: Message, state: FSMContext) -> None:
         return
     await message.answer(input_guard.form_explain(message, files_ok=True))
     await message.answer(texts.BCAST_PROMPT.format(updates=texts.BTN.ADMIN_PANEL_UPDATES))
+
+
+# --- «🤖 Автоприём»: пускать подходящие заявки без админа ---
+
+
+def _auto_kb(is_on: bool) -> InlineKeyboardMarkup:
+    """Одна кнопка — противоположная нынешнему состоянию."""
+    label = texts.BTN.AUTO_OFF if is_on else texts.BTN.AUTO_ON
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text=label, callback_data=AutoApproveCB().pack())]]
+    )
+
+
+def _auto_panel(is_on: bool) -> str:
+    return texts.AUTO_PANEL.format(
+        state=texts.AUTO_STATE_ON if is_on else texts.AUTO_STATE_OFF,
+        age_min=autoapprove_service.AGE_MIN,
+        age_max=autoapprove_service.AGE_MAX,
+    )
+
+
+@router.message(_PRIVATE, StateFilter(None), F.text == texts.BTN.ADMIN_PANEL_AUTOAPPROVE)
+async def btn_autoapprove(message: Message, session: AsyncSession) -> None:
+    """Состояние автоприёма, правила и кнопка переключения."""
+    is_on = await settings_service.is_on(session, settings_service.AUTO_APPROVE)
+    await message.answer(_auto_panel(is_on), reply_markup=_auto_kb(is_on))
+
+
+@router.callback_query(AutoApproveCB.filter())
+async def cb_autoapprove_toggle(
+    callback: CallbackQuery, session: AsyncSession, db_user: User
+) -> None:
+    """Переключает автоприём. Запись об этом остаётся в журнале действий."""
+    await callback.answer()
+    is_on = await settings_service.toggle(session, settings_service.AUTO_APPROVE, db_user)
+    await callback.message.edit_text(_auto_panel(is_on), reply_markup=_auto_kb(is_on))
+    await callback.message.answer(
+        texts.AUTO_SWITCHED_ON if is_on else texts.AUTO_SWITCHED_OFF
+    )

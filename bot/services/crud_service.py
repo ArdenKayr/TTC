@@ -32,6 +32,7 @@ from bot.db.models import (
     ActivityRequest,
     AliasSuggestion,
     AuditLog,
+    BotSetting,
     ContentBlock,
     ErrorLog,
     PermissionGroup,
@@ -122,6 +123,16 @@ _SPECS = [
     ),
     TableSpec(
         "cont", "Контент и сценарии", ContentBlock, lambda o: _short(o.slot), superadmin=False
+    ),
+    # Переключатели поведения бота. Их место — раздел «🤖 Автоприём»; здесь
+    # они на случай, когда надо посмотреть или починить значение напрямую.
+    TableSpec(
+        "set",
+        "Переключатели бота",
+        BotSetting,
+        lambda o: f"{_short(o.key, 25)} · {o.value}",
+        superadmin=False,
+        write_owner_only=True,
     ),
     # Логи бот сам только пополняет. Правит и чистит их вручную владелец —
     # он же единственный, кто их видит.
@@ -397,6 +408,10 @@ LINK_LABELS: dict[tuple[str, str], tuple[tuple[str, str, str], str]] = {
     ("content_blocks", "updated_by"): (
         ("блок контента", "блока контента", "блоков контента"),
         "он менял последним",
+    ),
+    ("bot_settings", "updated_by"): (
+        ("переключатель бота", "переключателя бота", "переключателей бота"),
+        "он переключал последним",
     ),
     ("reports", "author_tg_id"): (
         ("репорт", "репорта", "репортов"),

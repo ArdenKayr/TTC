@@ -5692,6 +5692,95 @@
           "roles": [
             "owner"
           ]
+        },
+        {
+          "id": "owner_autoapprove",
+          "trigger_kind": "reply_button",
+          "trigger_ref": "BTN.ADMIN_PANEL_AUTOAPPROVE",
+          "where": "dm",
+          "roles": [
+            "owner"
+          ],
+          "handler": "bot/routers/admin/owner_panel.py:btn_autoapprove",
+          "does": "Читает из базы, включён ли автоприём заявок на вступление, и показывает правила, по которым бот пускает людей без админа.",
+          "shows": "Состояние («включён» или «выключен»), список из пяти условий и одну кнопку — противоположную нынешнему состоянию.",
+          "next": [
+            "owner_auto_toggle"
+          ],
+          "db_reads": [
+            "bot_settings"
+          ]
+        },
+        {
+          "id": "owner_auto_toggle",
+          "trigger_kind": "inline_button",
+          "trigger_ref": "BTN.AUTO_ON",
+          "covers_buttons": [
+            "BTN.AUTO_OFF"
+          ],
+          "where": "dm",
+          "roles": [
+            "owner"
+          ],
+          "handler": "bot/routers/admin/owner_panel.py:cb_autoapprove_toggle",
+          "does": "Переключает автоприём и пишет об этом в журнал действий: вопрос «почему этого человека впустили без нас» должен иметь ответ.",
+          "shows": "Обновлённую панель с новым состоянием и сообщение о том, что изменилось: подходящие заявки бот теперь принимает сам — или снова не принимает.",
+          "next": [
+            "reg_auto_approved",
+            "reg_auto_skipped"
+          ],
+          "db_reads": [
+            "bot_settings"
+          ],
+          "db_writes": [
+            "bot_settings",
+            "audit_log"
+          ]
+        },
+        {
+          "id": "reg_auto_approved",
+          "trigger_kind": "auto",
+          "trigger_text": "заявка прошла все правила автоприёма",
+          "where": "dm",
+          "roles": [
+            "guest"
+          ],
+          "handler": "bot/services/registration_service.py:decide_or_ask",
+          "does": "Проверяет заявку по правилам автоприёма (вуз из справочника, указана группа, первая попытка, в имени нет ссылок, возраст в обычных рамках) и, если сошлось всё сразу, принимает её сам — тем же путём, что и админ: создаёт запись участника, делает одноразовую ссылку, пишет человеку.",
+          "shows": "Человеку — то же поздравление со ссылкой в группу, что и при обычном одобрении, без слов «принято автоматически». Админам в тему «Заявки» уходит карточка с пометкой и уже без кнопок: решать нечего, но видно, кого впустили.",
+          "db_reads": [
+            "bot_settings",
+            "registration_requests",
+            "universities"
+          ],
+          "db_writes": [
+            "registration_requests",
+            "users",
+            "audit_log"
+          ]
+        },
+        {
+          "id": "reg_auto_skipped",
+          "trigger_kind": "auto",
+          "trigger_text": "автоприём включён, но заявка под правила не подошла",
+          "where": "admin_chat",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/services/registration_service.py:decide_or_ask",
+          "does": "Отдаёт заявку людям — так же, как при выключенном автоприёме.",
+          "shows": "Обычную карточку с кнопками решения и строку о том, какое именно правило не сошлось: заявка на новый вуз, повторная попытка, ссылка в имени, возраст вне обычного.",
+          "next": [
+            "appl_reg_approve",
+            "appl_reg_reject"
+          ],
+          "db_reads": [
+            "bot_settings",
+            "registration_requests",
+            "universities"
+          ]
         }
       ]
     },
@@ -6845,6 +6934,17 @@
       ],
       "read_by": [
         "Карточка репорта: последние реплики видны прямо в ней"
+      ]
+    },
+    {
+      "name": "bot_settings",
+      "title": "Переключатели бота",
+      "purpose": "Настройки, которые владелец меняет на ходу из панели, а не выкаткой: сейчас это единственный переключатель — автоприём заявок на вступление. Настройки самой установки (токен, номера чатов, адрес базы) живут в .env и сюда не попадают.",
+      "key_fields": [
+        "key — что переключаем (auto_approve)",
+        "value — «on» или «off»; нет записи — значит выключено",
+        "updated_by — кто переключил последним",
+        "updated_at — когда"
       ]
     }
   ],

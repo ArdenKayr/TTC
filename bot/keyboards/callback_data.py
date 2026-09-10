@@ -191,6 +191,10 @@ class UpdatePostCB(CallbackData, prefix="oupd"):
     action: str  # send | cancel
 
 
+class AutoApproveCB(CallbackData, prefix="oauto"):
+    """Переключатель автоприёма в панели владельца."""
+
+
 class BroadcastCB(CallbackData, prefix="obcast"):
     action: str  # send | cancel
 

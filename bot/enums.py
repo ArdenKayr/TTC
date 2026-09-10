@@ -103,3 +103,7 @@ class AuditAction(str, Enum):
     BROADCAST_SENT = "broadcast_sent"
     REPORT_STATUS_CHANGED = "report_status_changed"
     REPORT_ANSWERED = "report_answered"
+    # Владелец переключил что-то в поведении бота (пока — автоприём заявок).
+    SETTING_CHANGED = "setting_changed"
+    # Заявку принял сам бот по правилам автоприёма, без участия админа.
+    REGISTRATION_AUTO_APPROVED = "registration_auto_approved"

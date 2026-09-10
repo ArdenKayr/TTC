@@ -32,6 +32,7 @@ MENU_BUTTON_TEXTS = {
     texts.BTN.ADMIN_PANEL_LOGS,
     texts.BTN.ADMIN_PANEL_UPDATES,
     texts.BTN.ADMIN_PANEL_BROADCAST,
+    texts.BTN.ADMIN_PANEL_AUTOAPPROVE,
     texts.BTN.ADMIN_PANEL_USER_MODE,
 }
 
@@ -92,6 +93,7 @@ def admin_sections(user: User, modules: set[str]) -> list[str]:
         sections.append(texts.BTN.ADMIN_PANEL_LOGS)
         sections.append(texts.BTN.ADMIN_PANEL_UPDATES)
         sections.append(texts.BTN.ADMIN_PANEL_BROADCAST)
+        sections.append(texts.BTN.ADMIN_PANEL_AUTOAPPROVE)
     return sections
 
 
