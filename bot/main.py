@@ -10,6 +10,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 from bot.config import settings
 from bot.middlewares.ban_guard import BanGuardMiddleware
 from bot.middlewares.db_session import DbSessionMiddleware
+from bot.middlewares.form_guard import FormGuardMiddleware
 from bot.middlewares.role_guard import UserLoaderMiddleware
 from bot.routers.activities import router as activities_router
 from bot.routers.admin.activity_review import router as activity_review_router
@@ -100,6 +101,9 @@ async def main() -> None:
     dp.update.outer_middleware(DbSessionMiddleware())
     # Outer (pre-filter) so that db_user is available inside filters like IsAdmin.
     for observer in (dp.message, dp.callback_query):
+        # Первым — чтобы видеть падения и в остальных слоях тоже: анкета не
+        # должна оставаться на шаге, вопрос которого человек не получил.
+        observer.outer_middleware(FormGuardMiddleware())
         observer.outer_middleware(UserLoaderMiddleware())
         observer.outer_middleware(BanGuardMiddleware())
 

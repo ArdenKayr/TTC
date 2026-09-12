@@ -56,3 +56,19 @@ async def restart(state: FSMContext, step: State) -> None:
     """Начать анкету заново: путь стирается, ответы тоже."""
     await state.update_data(**{HISTORY_KEY: []})
     await state.set_state(step)
+
+
+async def rewind(state: FSMContext, step: str | None) -> None:
+    """Откатить несостоявшийся переход: вернуть шаг, который был до него.
+
+    Нужен, когда шаг выставлен, а вопрос до человека не дошёл (см.
+    `bot/middlewares/form_guard.py`). Кроме самого шага снимается и след в
+    истории: goto() успел положить туда прежний шаг, и без уборки «⬅️ Шаг
+    назад» привёл бы человека на тот шаг, где он и так стоит.
+    """
+    data = await state.get_data()
+    history = list(data.get(HISTORY_KEY, []))
+    if history and history[-1] == step:
+        history.pop()
+        await state.update_data(**{HISTORY_KEY: history})
+    await state.set_state(step)
