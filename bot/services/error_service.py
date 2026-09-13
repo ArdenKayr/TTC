@@ -4,7 +4,8 @@
 карточку владельцу в ЛС:
 
 - `on_error` — настоящий крэш: необработанное исключение в хендлере
-  (полный трейсбек, тип и текст исключения).
+  (полный трейсбек, тип и текст исключения). Если крэш — сбой связи с
+  Telegram, человеку в личке ещё и говорится, что делать (`warn_person`).
 - `report_issue` — функция НЕ упала, но результат не тот, что задуман
   (не удалось создать инвайт-ссылку, не доставилась личка, не удалось
   исключить забаненного из группы и т.п.). Раньше такие случаи в лучшем
@@ -24,8 +25,10 @@ from datetime import timedelta
 from html import escape
 
 from aiogram import Bot
-from aiogram.exceptions import TelegramAPIError
+from aiogram.enums import ChatType
+from aiogram.exceptions import TelegramAPIError, TelegramNetworkError
 from aiogram.types import ErrorEvent
+from aiogram.types.update import UpdateTypeLookupError
 from sqlalchemy import select
 
 from bot import texts, timefmt
@@ -105,7 +108,7 @@ def _describe_update(event: ErrorEvent) -> dict:
     else:
         try:
             info["update_type"] = upd.event_type
-        except Exception:
+        except UpdateTypeLookupError:
             info["update_type"] = "unknown"
     return info
 
@@ -184,9 +187,52 @@ async def _persist_and_notify(
             logger.warning("Failed to DM owner %s about error %s: %s", owner_id, row.id, e)
 
 
+def chat_to_warn(event: ErrorEvent) -> int | None:
+    """Кому сказать, что бот не ответил из-за связи, — или никому.
+
+    Только сбою связи: на нём повтор честно помогает, а настоящая ошибка в
+    коде на повторе упадёт снова. И только в личке: в группе сорвалось
+    действие одного, а сообщение увидели бы все.
+    """
+    if not isinstance(event.exception, TelegramNetworkError):
+        return None
+    upd = event.update
+    message = upd.message or upd.edited_message
+    if message is None and upd.callback_query is not None:
+        message = upd.callback_query.message
+    if message is None or message.chat.type != ChatType.PRIVATE:
+        return None
+    return message.chat.id
+
+
+async def warn_person(bot: Bot, event: ErrorEvent) -> None:
+    """Сказать человеку, что связь подвела, и попросить повторить.
+
+    Без этого человек видит тишину и не знает, ждать ему или жать снова. А
+    анкету слой form_guard к этому моменту уже вернул на прежний шаг — и она
+    ждёт именно повтора, дошёл вопрос до человека или нет (запись №14 в
+    журнале ошибок, 13 сентября 2026).
+
+    Предупреждение идёт той же плохой связью, поэтому его неудача только
+    пишется в лог: вторая карточка владельцу про ту же беду не нужна.
+    """
+    try:
+        chat_id = chat_to_warn(event)
+        if chat_id is None:
+            return
+        await bot.send_message(chat_id, texts.NETWORK_TROUBLE_NOTICE)
+    except Exception as error:  # noqa: BLE001 — предупреждение не должно ронять обработку ошибки
+        logger.warning("Не смогли предупредить человека о сбое связи: %s", error)
+
+
 async def on_error(event: ErrorEvent, bot: Bot) -> bool:
-    """Настоящий крэш — необработанное исключение в хендлере."""
+    """Настоящий крэш — необработанное исключение в хендлере.
+
+    Первым делом — человек, если его действие сорвала связь: он смотрит на
+    экран и ждёт ответа, а журнал и карточка владельцу подождут секунду.
+    """
     logger.exception("Unhandled error in handler", exc_info=event.exception)
+    await warn_person(bot, event)
     try:
         exc = event.exception
         tb_text = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
