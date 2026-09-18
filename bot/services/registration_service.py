@@ -168,7 +168,7 @@ async def submit_request(
 
         await notification_service.send_admin_card(
             bot,
-            university_service.render_request_card(university_request),
+            await university_service.render_request_card(session, university_request),
             university_request_review_kb(university_request.request_id),
             source="Регистрация: заявка на вуз",
             tg_id=applicant.id,

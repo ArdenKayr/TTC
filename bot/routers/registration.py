@@ -1,3 +1,4 @@
+import re
 from datetime import date, datetime
 from html import escape
 
@@ -40,9 +41,22 @@ from bot.states.registration_states import RegistrationForm
 
 router = Router(name="registration")
 
+# Всё, что не буква и не цифра: эмодзи, точки, стрелки — для сравнения с «Готово».
+_NON_WORD_RE = re.compile(r"[^\w]+", re.UNICODE)
+
 
 def _valid_line(text: str, min_len: int, max_len: int) -> bool:
     return min_len <= len(text) <= max_len and "\n" not in text
+
+
+def _means_done(text: str) -> bool:
+    """«Готово» в любом написании — с эмодзи, без него, в другом регистре.
+
+    Кнопка подписана «Готово ➡️», а сравнение было точным: слово «Готово»,
+    написанное руками, шло дальше как вариант поиска. Один такой вариант
+    доехал до справочника вузов и висел там настоящим сокращением.
+    """
+    return _NON_WORD_RE.sub(" ", text).strip().lower() == "готово"
 
 
 def _valid_link(link: str) -> bool:
@@ -425,7 +439,7 @@ async def form_feedback_other(message: Message) -> None:
 # --- Свои варианты поиска для выбранного вуза ---
 
 
-@router.message(RegistrationForm.alias_suggest, F.text == texts.BTN.ALIAS_DONE)
+@router.message(RegistrationForm.alias_suggest, F.text.func(_means_done))
 async def form_alias_done(message: Message, state: FSMContext) -> None:
     await _goto_group(message, state)
 
@@ -509,7 +523,7 @@ async def form_uni_new_name(message: Message, state: FSMContext) -> None:
     await _ask_uni_new_aliases(message)
 
 
-@router.message(RegistrationForm.uni_new_aliases, F.text == texts.BTN.ALIAS_DONE)
+@router.message(RegistrationForm.uni_new_aliases, F.text.func(_means_done))
 async def form_uni_new_aliases_done(message: Message, state: FSMContext) -> None:
     await form_nav.goto(state, RegistrationForm.uni_new_link)
     await _ask_uni_new_link(message)

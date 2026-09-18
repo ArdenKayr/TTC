@@ -4,9 +4,15 @@
 Любой админ может принять, отклонить или исправить данные (убрать опечатки)
 до принятия решения. Решение атомарное: двум админам одновременно «принять»
 не даст.
+
+В карточке заявки на вуз бот сам показывает похожие записи справочника
+(`find_similar`): одобряющий видит, что такой вуз уже заведён, и не плодит
+двойников. Точное совпадение названия ловил и `approve_request`, но двойник
+почти никогда не совпадает точно.
 """
 
 import uuid
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from html import escape
 
@@ -26,6 +32,10 @@ from bot.enums import AuditAction, RequestStatus
 from bot.keyboards.admin_kb import alias_suggestion_review_kb
 from bot.services import notification_service, registration_service
 
+# Сколько похожих записей показывать в карточке заявки: больше трёх админ
+# всё равно не читает, а короткий список заметнее длинного.
+SIMILAR_LIMIT = 3
+
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -35,9 +45,40 @@ def _username_label(username: str | None) -> str:
     return f"@{username}" if username else texts.USERNAME_MISSING
 
 
-def render_request_card(request: UniversityRequest) -> str:
+async def find_similar(
+    session: AsyncSession, request: UniversityRequest
+) -> list[University]:
+    """Записи справочника, похожие на заявку, — тем же поиском, каким ищет человек.
+
+    Ищем и по названию, и по каждому варианту поиска: двойник редко похож
+    названием (у настоящей записи оно длинное и официальное), зато почти всегда
+    совпадает сокращением — «РГПУ», «СПбГАСУ», «СПбГПМУ».
+    """
+    found: dict[int, University] = {}
+    for query in (request.name, *(request.aliases or [])):
+        for university in await university_repo.search(session, query, limit=SIMILAR_LIMIT):
+            found.setdefault(university.university_id, university)
+        if len(found) >= SIMILAR_LIMIT:
+            break
+    return list(found.values())[:SIMILAR_LIMIT]
+
+
+def render_similar_block(similar: Sequence[University]) -> str:
+    """Приписка к карточке заявки. Пустая строка, если похожего не нашлось."""
+    if not similar:
+        return ""
+    items = "\n".join(
+        texts.UNI_REQ_SIMILAR_ITEM.format(
+            name=escape(university.canonical_name), uni_id=university.university_id
+        )
+        for university in similar
+    )
+    return texts.UNI_REQ_SIMILAR.format(items=items)
+
+
+async def render_request_card(session: AsyncSession, request: UniversityRequest) -> str:
     aliases = ", ".join(escape(a) for a in (request.aliases or []))
-    return texts.UNI_REQ_CARD.format(
+    card = texts.UNI_REQ_CARD.format(
         name=escape(request.applicant_name),
         username=escape(_username_label(request.applicant_username)),
         tg_id=request.tg_id,
@@ -45,6 +86,7 @@ def render_request_card(request: UniversityRequest) -> str:
         aliases=aliases or texts.NO_ALIASES_PLACEHOLDER,
         link=escape(request.link),
     )
+    return card + render_similar_block(await find_similar(session, request))
 
 
 def render_alias_card(suggestion: AliasSuggestion, university_name: str) -> str:

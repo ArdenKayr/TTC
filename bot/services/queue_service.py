@@ -199,7 +199,7 @@ async def _card(session: AsyncSession, kind_key: str, row: object) -> Card:
         )
     if kind_key == "uni":
         return Card(
-            text=university_service.render_request_card(row),
+            text=await university_service.render_request_card(session, row),
             keyboard=university_request_review_kb(row.request_id),
         )
     if kind_key == "alias":

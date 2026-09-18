@@ -121,7 +121,7 @@ async def msg_uni_edit(
         await message.answer(note)
         return
     request = await university_request_repo.get(session, request_id)
-    card = university_service.render_request_card(request)
+    card = await university_service.render_request_card(session, request)
     card += texts.UNI_REQ_EDITED_MARK.format(admin=db_user.display_name)
     await message.bot.edit_message_text(
         card,
