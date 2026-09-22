@@ -142,3 +142,13 @@ def may_see_all(user: User) -> bool:
     соревнование, которого никто не объявлял.
     """
     return user.current_role in (UserRole.SUPERADMIN, UserRole.OWNER)
+
+
+def may_delete(user: User, link: ReferralLink) -> bool:
+    """Свою ссылку хозяин убирает когда захочет, чужую — только суперадмин.
+
+    Удаление уносит и счётчики, поэтому чужие ссылки закрыты даже от соседа с
+    такими же правами: цифры чужой работы стирать не ему. Ссылку, оставшуюся
+    без хозяина (он удалил аккаунт), убирает суперадмин или владелец.
+    """
+    return link.owner_tg_id == user.tg_id or may_see_all(user)

@@ -10,10 +10,12 @@
 разговор с человеком.
 """
 
+from contextlib import suppress
 from html import escape
 
 from aiogram import F, Router
 from aiogram.enums import ChatType
+from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
@@ -272,7 +274,7 @@ async def cb_delete(
     if link is None:
         await callback.answer(texts.REF_GONE, show_alert=True)
         return
-    if link.owner_tg_id != db_user.tg_id and not referral_service.may_see_all(db_user):
+    if not referral_service.may_delete(db_user, link):
         await callback.answer(texts.REF_NOT_YOURS, show_alert=True)
         return
 
@@ -296,6 +298,10 @@ async def cb_delete(
         meta={"title": title},
     )
     await session.commit()
+    # Кнопка под подтверждением больше ничего не значит: ссылки нет. Убираем,
+    # чтобы на неё не жали второй раз и не получали «этой ссылки уже нет».
+    with suppress(TelegramAPIError):
+        await callback.message.edit_reply_markup(reply_markup=None)
     await callback.message.answer(texts.REF_DELETED.format(title=escape(title)))
     await callback.answer()
 

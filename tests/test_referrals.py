@@ -277,6 +277,37 @@ def test_who_sees_other_peoples_links(role: UserRole, expected: bool) -> None:
     assert referral_service.may_see_all(_User(ADMIN, role)) is expected
 
 
+# --- Кто может убрать ссылку ---
+
+
+def test_owner_deletes_his_own_link() -> None:
+    """Своя ссылка убирается по желанию — без разработчика и без владельца."""
+    link = _Link("aaa1111", ADMIN)
+    assert referral_service.may_delete(_User(ADMIN, UserRole.ADMIN), link) is True
+
+
+def test_neighbour_admin_cannot_delete() -> None:
+    """Удаление уносит счётчики: чужую работу стирать не соседу с теми же правами."""
+    link = _Link("aaa1111", ADMIN)
+    assert referral_service.may_delete(_User(OTHER_ADMIN, UserRole.ADMIN), link) is False
+
+
+@pytest.mark.parametrize("role", [UserRole.SUPERADMIN, UserRole.OWNER])
+def test_superadmin_deletes_any_link(role: UserRole) -> None:
+    link = _Link("aaa1111", ADMIN)
+    assert referral_service.may_delete(_User(OTHER_ADMIN, role), link) is True
+
+
+@pytest.mark.parametrize(
+    ("role", "expected"),
+    [(UserRole.ADMIN, False), (UserRole.SUPERADMIN, True), (UserRole.OWNER, True)],
+)
+def test_ownerless_link_is_cleaned_up_from_above(role: UserRole, expected: bool) -> None:
+    """Хозяин удалил аккаунт — убрать его ссылку может только тот, кто выше."""
+    link = _Link("aaa1111", None)
+    assert referral_service.may_delete(_User(ADMIN, role), link) is expected
+
+
 def test_section_button_leaves_the_form() -> None:
     """Нажатие раздела посреди ввода — выход, а не название ссылки."""
     assert texts.BTN.ADMIN_PANEL_REFERRALS in MENU_BUTTON_TEXTS
