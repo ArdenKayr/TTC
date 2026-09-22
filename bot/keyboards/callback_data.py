@@ -214,3 +214,12 @@ class ReportAnswerCB(CallbackData, prefix="repans"):
     """«Ответить» под сообщением, которое пришло автору репорта."""
 
     report_id: int
+
+
+class RefNewCB(CallbackData, prefix="refnew"):
+    """«Новая ссылка» в разделе «🔗 Приглашения»."""
+
+
+class RefDeleteCB(CallbackData, prefix="refdel"):
+    code: str
+    confirmed: bool = False

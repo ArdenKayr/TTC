@@ -107,3 +107,6 @@ class AuditAction(str, Enum):
     SETTING_CHANGED = "setting_changed"
     # Заявку принял сам бот по правилам автоприёма, без участия админа.
     REGISTRATION_AUTO_APPROVED = "registration_auto_approved"
+    # Ссылки-приглашения: кто их завёл и кому.
+    REFERRAL_LINK_CREATED = "referral_link_created"
+    REFERRAL_LINK_DELETED = "referral_link_deleted"

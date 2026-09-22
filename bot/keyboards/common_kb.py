@@ -29,6 +29,7 @@ MENU_BUTTON_TEXTS = {
     texts.BTN.ADMIN_PANEL_PERMS,
     texts.BTN.ADMIN_PANEL_ACTIVITIES,
     texts.BTN.ADMIN_PANEL_REPORTS,
+    texts.BTN.ADMIN_PANEL_REFERRALS,
     texts.BTN.ADMIN_PANEL_LOGS,
     texts.BTN.ADMIN_PANEL_UPDATES,
     texts.BTN.ADMIN_PANEL_BROADCAST,
@@ -86,6 +87,10 @@ def admin_sections(user: User, modules: set[str]) -> list[str]:
         sections.append(texts.BTN.ADMIN_PANEL_CONTENT)
     if is_full_admin:
         sections.append(texts.BTN.ADMIN_PANEL_PERMS)
+        # Ссылки-приглашения без своего модуля прав: это не участок работы,
+        # а именной счётчик того, кто и так отвечает за набор целиком.
+        # Чужие ссылки видны в разделе только суперадминам.
+        sections.append(texts.BTN.ADMIN_PANEL_REFERRALS)
     if is_super:
         sections.append(texts.BTN.ADMIN_PANEL_CRUD)
         sections.append(texts.BTN.ADMIN_PANEL_SCENARIOS)

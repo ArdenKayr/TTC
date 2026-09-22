@@ -443,7 +443,8 @@
           "does": "Меняет только нижнее меню на админское; команды бота при этом работают всегда. У владельца кнопок больше.",
           "shows": "«Режим админства…» и кнопки: Пользователи, CRUD, Сценарии, Разделы; у владельца ещё Логи и Обновления; и выход «⬅️ Пользователь».",
           "next": [
-            "admin_mode_off"
+            "admin_mode_off",
+            "ref_home"
           ],
           "db_reads": [
             "users"
@@ -4816,6 +4817,268 @@
       ]
     },
     {
+      "key": "ref",
+      "label": "Ссылки-приглашения: кто привёл человека в бота",
+      "nodes": [
+        {
+          "id": "ref_deeplink",
+          "trigger_kind": "command",
+          "trigger_text": "/start по ссылке-приглашению",
+          "where": "dm",
+          "roles": [
+            "guest"
+          ],
+          "handler": "bot/routers/common.py:cmd_start",
+          "does": "Читает код из хвоста ссылки и записывает, кто привёл человека. Засчитывается один раз и только первой ссылке: повторный заход и открытая потом чужая ссылка ничего не меняют. Свою ссылку хозяин себе не засчитывает, а уже зарегистрированного бот не считает вовсе.",
+          "shows": "Обычное приветствие сообщества с меню гостя — человек не видит, что его переход учли.",
+          "next": [
+            "reg_menu_register",
+            "about_show"
+          ],
+          "db_reads": [
+            "referral_links",
+            "referral_visits",
+            "users",
+            "content_blocks"
+          ],
+          "db_writes": [
+            "referral_visits"
+          ]
+        },
+        {
+          "id": "ref_home",
+          "trigger_kind": "reply_button",
+          "trigger_ref": "BTN.ADMIN_PANEL_REFERRALS",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/admin/referrals.py:btn_referrals",
+          "does": "Показывает ссылки со счётчиками: админу — только его собственные, суперадмину и владельцу — все сразу, с именем хозяина каждой.",
+          "shows": "Объяснение, как считаются переходы, кнопку «➕ Новая ссылка» и по карточке на ссылку: название, сама ссылка и три числа — открыли бота, подали анкету, приняты. Ссылок нет — предложение завести первую.",
+          "next": [
+            "ref_new",
+            "ref_delete"
+          ],
+          "db_reads": [
+            "referral_links",
+            "referral_visits",
+            "users"
+          ]
+        },
+        {
+          "id": "ref_new",
+          "trigger_kind": "inline_button",
+          "trigger_ref": "BTN.REF_NEW",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/admin/referrals.py:cb_new_link",
+          "does": "Начинает создание ссылки и ждёт название.",
+          "shows": "Просьбу придумать название (от 2 до 60 символов) с оговоркой, что его видно только в этом разделе, и кнопку «🚫 Отмена».",
+          "next": [
+            "ref_title",
+            "ref_cancel",
+            "ref_menu_pressed",
+            "ref_start_over",
+            "ref_unexpected"
+          ]
+        },
+        {
+          "id": "ref_title",
+          "trigger_kind": "message",
+          "trigger_text": "название ссылки",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/admin/referrals.py:form_title",
+          "does": "Проверяет длину названия. Админу сразу заводит ссылку на него самого, а суперадмина и владельца спрашивает, чью работу она будет считать.",
+          "shows": "Админу — готовую ссылку с нулевыми счётчиками. Суперадмину — вопрос «чья ссылка» с кнопкой «🙋 Себе». Слишком короткое или длинное название — просьбу прислать другое.",
+          "next": [
+            "ref_owner_self",
+            "ref_owner",
+            "ref_delete"
+          ],
+          "db_reads": [
+            "referral_links"
+          ],
+          "db_writes": [
+            "referral_links",
+            "audit_log"
+          ]
+        },
+        {
+          "id": "ref_owner_self",
+          "trigger_kind": "reply_button",
+          "trigger_ref": "BTN.REF_SELF",
+          "where": "dm",
+          "roles": [
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/admin/referrals.py:form_owner_self",
+          "does": "Заводит ссылку на того, кто её создаёт.",
+          "shows": "Готовую ссылку с нулевыми счётчиками и кнопкой «🗑 Удалить ссылку», внизу — панель админства.",
+          "next": [
+            "ref_delete"
+          ],
+          "db_reads": [
+            "referral_links"
+          ],
+          "db_writes": [
+            "referral_links",
+            "audit_log"
+          ]
+        },
+        {
+          "id": "ref_owner",
+          "trigger_kind": "message",
+          "trigger_text": "@ник или номер аккаунта того, чья это будет ссылка",
+          "where": "dm",
+          "roles": [
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/admin/referrals.py:form_owner",
+          "does": "Находит человека по @нику или номеру и заводит ссылку на него. Ссылку можно выдать и тому, у кого админских прав нет: считать переходы она будет так же.",
+          "shows": "Готовую ссылку с пометкой, чья она, и кнопкой «🗑 Удалить ссылку». Человек не найден — «Пользователь не найден» и просьба прислать другой @ник или номер.",
+          "next": [
+            "ref_delete"
+          ],
+          "db_reads": [
+            "users",
+            "referral_links"
+          ],
+          "db_writes": [
+            "referral_links",
+            "audit_log"
+          ]
+        },
+        {
+          "id": "ref_delete",
+          "trigger_kind": "inline_button",
+          "trigger_ref": "BTN.REF_DELETE",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/admin/referrals.py:cb_delete",
+          "does": "Спрашивает подтверждение. Чужую ссылку не удалит никто, кроме суперадмина и владельца.",
+          "shows": "Вопрос «Удалить ссылку …?» с предупреждением, что счётчики исчезнут вместе с ней, а уже принятые участники останутся, и кнопку «🗑 Да, удалить ссылку». На чужую ссылку — отказ всплывающим окном.",
+          "next": [
+            "ref_delete_yes"
+          ],
+          "db_reads": [
+            "referral_links"
+          ]
+        },
+        {
+          "id": "ref_delete_yes",
+          "trigger_kind": "inline_button",
+          "trigger_ref": "BTN.REF_DELETE_YES",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/admin/referrals.py:cb_delete",
+          "does": "Удаляет ссылку вместе с её переходами и пишет об этом в журнал. Люди, уже принятые в сообщество, остаются на месте.",
+          "shows": "«Ссылка … удалена.»",
+          "db_reads": [
+            "referral_links"
+          ],
+          "db_writes": [
+            "referral_links",
+            "referral_visits",
+            "audit_log"
+          ]
+        },
+        {
+          "id": "ref_cancel",
+          "trigger_kind": "reply_button",
+          "trigger_ref": "BTN.REG_CANCEL",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/admin/referrals.py:form_cancel",
+          "does": "Бросает создание ссылки.",
+          "shows": "«Создание ссылки отменено.» и панель админства внизу.",
+          "db_reads": [
+            "users",
+            "permission_groups"
+          ]
+        },
+        {
+          "id": "ref_menu_pressed",
+          "trigger_kind": "reply_button",
+          "trigger_text": "любая кнопка нижнего меню",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/admin/referrals.py:form_menu_pressed",
+          "does": "Нажатие кнопки меню во время ввода — это выход, а не название ссылки.",
+          "shows": "«Создание ссылки отменено.» и панель админства внизу.",
+          "db_reads": [
+            "users",
+            "permission_groups"
+          ]
+        },
+        {
+          "id": "ref_start_over",
+          "trigger_kind": "command",
+          "trigger_text": "/start",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/admin/referrals.py:form_start_over",
+          "does": "Спасательный выход: бросает создание ссылки и возвращает на стартовый экран.",
+          "shows": "Приветствие с именем и ролью и обычное меню внизу.",
+          "db_reads": [
+            "users",
+            "content_blocks"
+          ]
+        },
+        {
+          "id": "ref_unexpected",
+          "trigger_kind": "message",
+          "trigger_text": "стикер, фото или голосовое вместо названия",
+          "where": "dm",
+          "roles": [
+            "admin",
+            "superadmin",
+            "owner"
+          ],
+          "handler": "bot/routers/admin/referrals.py:form_unexpected",
+          "does": "Объясняет, что шаг ждёт текст, и повторяет вопрос — молчать в ответ бот не должен.",
+          "shows": "Объяснение, что пришло не то, и снова вопрос: название ссылки либо «чья она».",
+          "next": [
+            "ref_title",
+            "ref_owner"
+          ]
+        }
+      ]
+    },
+    {
       "key": "owner",
       "label": "Контент, сценарии, логи и рассылка обновлений",
       "nodes": [
@@ -4836,7 +5099,8 @@
             "cont_btn",
             "logs_home",
             "upd_start",
-            "own_panel_close"
+            "own_panel_close",
+            "ref_home"
           ]
         },
         {
@@ -6945,6 +7209,57 @@
         "value — «on» или «off»; нет записи — значит выключено",
         "updated_by — кто переключил последним",
         "updated_at — когда"
+      ]
+    },
+    {
+      "name": "referral_links",
+      "title": "Ссылки-приглашения",
+      "purpose": "Именная ссылка на бота, по которой видно, кого привёл этот человек.",
+      "key_fields": [
+        "code — хвост ссылки «t.me/бот?start=…»: семь букв и цифр, которые не путаются на слух",
+        "owner_tg_id — чью работу ссылка считает; удалил человек аккаунт — ссылка остаётся ничьей, но со своими цифрами",
+        "title — название для самого админа: «Физфак», «Осенний набор»; приглашённым его не видно",
+        "created_by — кто ссылку завёл (владелец раздаёт их админам)",
+        "created_at — когда завели"
+      ],
+      "links": [
+        "referral_links.owner_tg_id -> users.tg_id",
+        "referral_links.created_by -> users.tg_id",
+        "referral_links.code -> referral_visits.code"
+      ],
+      "written_by": [
+        "Админ заводит ссылку себе в «🛠 Админство» → «🔗 Приглашения»",
+        "Суперадмин или владелец заводит ссылку другому человеку — по @нику или номеру аккаунта",
+        "Хозяин ссылки или суперадмин удаляет её — переходы по ней уходят вместе с ней"
+      ],
+      "read_by": [
+        "Раздел «🔗 Приглашения»: карточка каждой ссылки со счётчиками",
+        "Учёт перехода: бот ищет здесь код из хвоста «/start»"
+      ]
+    },
+    {
+      "name": "referral_visits",
+      "title": "Переходы по ссылкам-приглашениям",
+      "purpose": "Один человек, пришедший по ссылке, и то, докуда он дошёл: открыл бота, подал анкету, принят.",
+      "key_fields": [
+        "tg_id — сам человек, и он же ключ: за одним человеком числится одна ссылка, первая",
+        "code — по чьей ссылке он пришёл",
+        "created_at — когда открыл бота",
+        "applied_at — когда отправил анкету (пусто, если не дошёл)",
+        "approved_at — когда его приняли в сообщество"
+      ],
+      "links": [
+        "referral_visits.code -> referral_links.code",
+        "referral_visits.tg_id -> users.tg_id (после одобрения)"
+      ],
+      "written_by": [
+        "Человек открыл бота по чьей-то ссылке — появляется строка (повторные заходы ничего не добавляют)",
+        "Он отправил анкету — проставляется «дошёл до анкеты»",
+        "Его заявку приняли (админ или автоприём) — проставляется «принят»",
+        "Ссылку удалили — переходы по ней стираются"
+      ],
+      "read_by": [
+        "Три числа под каждой ссылкой в разделе «🔗 Приглашения»"
       ]
     }
   ],

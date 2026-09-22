@@ -3,6 +3,7 @@ from bot.db.models.audit import AuditLog
 from bot.db.models.content import ContentBlock
 from bot.db.models.error import ErrorLog
 from bot.db.models.permission import PermissionGroup
+from bot.db.models.referral import ReferralLink, ReferralVisit
 from bot.db.models.registration import RegistrationRequest
 from bot.db.models.report import Report, ReportMessage
 from bot.db.models.setting import BotSetting
@@ -23,6 +24,8 @@ __all__ = [
     "ContentBlock",
     "ErrorLog",
     "PermissionGroup",
+    "ReferralLink",
+    "ReferralVisit",
     "RegistrationRequest",
     "Report",
     "ReportMessage",

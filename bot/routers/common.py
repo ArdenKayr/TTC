@@ -1,7 +1,7 @@
 
 from aiogram import F, Router
 from aiogram.enums import ChatType
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandObject, CommandStart
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +10,7 @@ from bot.db.models import User
 from bot.keyboards.callback_data import StartCB
 from bot.keyboards.common_kb import main_menu_kb
 from bot.routers.group.admin_chat import SERVICE_MESSAGE
-from bot.services import content_service, input_guard
+from bot.services import content_service, input_guard, referral_service
 
 router = Router(name="common")
 
@@ -34,7 +34,25 @@ async def send_start_screen(
 
 
 @router.message(CommandStart(), F.chat.type == ChatType.PRIVATE)
-async def cmd_start(message: Message, session: AsyncSession, db_user: User | None) -> None:
+async def cmd_start(
+    message: Message,
+    session: AsyncSession,
+    db_user: User | None,
+    command: CommandObject,
+) -> None:
+    """Обычный вход в бота — и тихий учёт ссылки-приглашения, если он по ней.
+
+    Ссылка приходит как хвост команды («/start код»): человек его не набирал и
+    не видит, экран у него такой же, как у пришедшего с общей ссылки. Считать
+    громко тут нечего — приглашённый не должен чувствовать себя галочкой в
+    чьём-то счётчике.
+    """
+    await referral_service.note_start(
+        session,
+        tg_id=message.from_user.id,
+        payload=(command.args or "").strip(),
+        is_registered=db_user is not None,
+    )
     await send_start_screen(message, session, db_user)
 
 

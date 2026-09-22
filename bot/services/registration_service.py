@@ -18,6 +18,7 @@ from bot.services import (
     autoapprove_service,
     error_service,
     notification_service,
+    referral_service,
     scenario_service,
     settings_service,
 )
@@ -154,6 +155,10 @@ async def submit_request(
     )
     session.add(request)
     await session.flush()
+
+    # Пришёл по чьей-то ссылке-приглашению — в его строке отмечается, что до
+    # анкеты он дошёл. Если ссылки не было, отметка просто никуда не ляжет.
+    await referral_service.note_applied(session, applicant.id)
 
     # Заявка фиксируется в базе ДО того, как бот пойдёт в Telegram. Порядок
     # здесь не косметика: раньше карточка уходила внутри незавершённой
@@ -348,6 +353,9 @@ async def approve(
             note="Человек одобрен, но приветствие со ссылкой ему не доставилось "
             "(вероятно, ни разу не писал боту).",
         )
+
+    # Дошёл до сообщества — это и есть итог работы того, кто его привёл.
+    await referral_service.note_approved(session, request.tg_id)
 
     await audit_repo.add(
         session,

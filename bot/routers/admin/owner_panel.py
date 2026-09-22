@@ -91,6 +91,8 @@ LOG_CATS: dict[str, tuple[str, tuple[str, ...] | None]] = {
             _A.PERM_GROUP_DELETED.value,
             _A.PROFILE_UPDATED.value,
             _A.ACCOUNT_DELETED.value,
+            _A.REFERRAL_LINK_CREATED.value,
+            _A.REFERRAL_LINK_DELETED.value,
         ),
     ),
     "acts": (

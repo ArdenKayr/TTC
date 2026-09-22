@@ -19,6 +19,7 @@ from bot.routers.admin.crud_admin import router as crud_admin_router
 from bot.routers.admin.owner_panel import router as owner_panel_router
 from bot.routers.admin.permissions_admin import router as permissions_admin_router
 from bot.routers.admin.queue import router as queue_router
+from bot.routers.admin.referrals import router as referrals_router
 from bot.routers.admin.registration_review import router as registration_review_router
 from bot.routers.admin.report_review import router as report_review_router
 from bot.routers.admin.scenario_admin import router as scenario_admin_router
@@ -113,6 +114,7 @@ async def main() -> None:
         university_review_router,
         activity_review_router,
         report_review_router,
+        referrals_router,
         permissions_admin_router,
         content_admin_router,
         registration_router,
